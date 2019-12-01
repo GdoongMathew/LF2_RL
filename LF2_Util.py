@@ -126,6 +126,13 @@ class Player:
         self.Mp = 0
         self.Mp_Usage = 0
 
+        self.picking = 0
+        self.Owner = 0
+        self.Enemy = 0
+        self.team = 0
+        self.is_active = False
+        self.is_alive = False
+
         self.x_pos = None
         self.y_pos = None
         self.z_pos = None
@@ -156,6 +163,10 @@ class Player:
         self.x_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.x_pos))
         self.y_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.y_pos))
         self.z_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.z_pos))
+
+        self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
+        self.picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
+        self.team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
     def get_player_char(self):
         # get current player character
