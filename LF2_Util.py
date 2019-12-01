@@ -15,6 +15,47 @@ Char_Name = {
 	"Freeze":   0, "Dennis":    0, "Woody":     0, "Davis":     0
 }
 
+class Lf2AddressTable:
+    kills = 0x358
+    Attack = 0x348
+    Hp = 0x2FC
+    Hp_Dark = 0x300
+    Hp_Max = 0x304
+    Hp_Lost = 0x32C
+    Mp = 0x308
+    Mp_Usage = 0x350
+
+    x_pos = 0x10
+    y_pos = 0x14
+    z_pos = 0x18
+
+    x_pos_f = 0x58
+    y_pos_f = 0x60
+    z_pos_f = 0x68
+
+    Picking = 0x35C
+    Owner = 0x354
+    Enemy = 0x360
+    Team = 0x364
+    Invincible = 0x8
+
+    PDataPointer = 0x368
+    DataPointer = 0x4592D4
+    GameState = 0x44D020
+    Time = 0x450BBC
+    TotalTime = 0x450B8C
+
+    Player = [0x458C94 + i * 4 for i in range(8)]
+    Computer = [0x458CBC + i * 4 for i in range(8)]
+    ActivePlayers = [0x458B04 + i for i in range(8)]
+    SelectedPlayers = [0x451288 + i * 4 for i in range(8)]
+    PlayerInGame = [0x458B04 + i for i in range(8)]
+    CPlayerInGame = [0x458B0E + i for i in range(8)]
+
+    Names = [0x44FCC0 + i * 11 for i in range(11)]
+    DataFile = [None] * 65
+
+
 class ProcessReading:
     # Reading process memory from certain memery address
     def __init__(self, win_handle):
@@ -64,47 +105,6 @@ class ProcessReading:
 
     def read_ushort(self, lpBaseAddress):
         return pymem.memory.read_ushort(self.proc_handle, lpBaseAddress)
-
-
-class Lf2AddressTable:
-    kills = 0x358
-    Attack = 0x348
-    Hp = 0x2FC
-    Hp_Dark = 0x300
-    Hp_Max = 0x304
-    Hp_Lost = 0x32C
-    Mp = 0x308
-    Mp_Usage = 0x350
-
-    x_pos = 0x10
-    y_pos = 0x14
-    z_pos = 0x18
-
-    x_pos_f = 0x58
-    y_pos_f = 0x60
-    z_pos_f = 0x68
-
-    Picking = 0x35C
-    Owner = 0x354
-    Enemy = 0x360
-    Team = 0x364
-    Invincible = 0x8
-
-    PDataPointer = 0x368
-    DataPointer = 0x4592D4
-    GameState = 0x44D020
-    Time = 0x450BBC
-    TotalTime = 0x450B8C
-
-    Player = [0x458C94 + i * 4 for i in range(8)]
-    Computer = [0x458CBC + i * 4 for i in range(8)]
-    ActivePlayers = [0x458B04 + i for i in range(8)]
-    SelectedPlayers = [0x451288 + i * 4 for i in range(8)]
-    PlayerInGame = [0x458B04 + i for i in range(8)]
-    CPlayerInGame = [0x458B0E + i for i in range(8)]
-
-    Names = [0x44FCC0 + i * 11 for i in range(11)]
-    DataFile = [None] * 65
 
 
 class Player:

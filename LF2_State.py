@@ -1,11 +1,11 @@
-from lf2_util import *
-from LF2_char import *
+from LF2_Util import *
 from mss import mss
 from win32api import GetSystemMetrics
+import numpy as np
+import winguiauto.winguiauto as winauto
 import win32gui
 import win32con
 import pyautogui
-import numpy as np
 import time
 import threading
 
@@ -46,12 +46,20 @@ class LF2_State:
 
         self.gaming_screen = None
 
-        self.recoring_thread = threading.Thread(target=self.screen_recording(), daemon=True)
-        self.player_thread = threading.Thread(target=self.player_state(), daemon=True)
+        self.recording_thread = threading.Thread(target=self.screen_recording, daemon=True)
+        self.player_thread = threading.Thread(target=self.player_state, daemon=True)
 
-    def get_state(self):
+        self.recording_thread.start()
+        self.player_thread.start()
+
+    def get_state(self, id=None):
         # return the current state of the game
-        return (self.gaming_screen, self.players)
+        if id:
+            if  not isinstance(id, int):
+                raise TypeError('id must be integer.')
+            return (self.gaming_screen, self.players[id])
+        else:
+            return (self.gaming_screen, self.players)
 
     def screen_recording(self):
         '''
@@ -67,7 +75,7 @@ class LF2_State:
                 h = GetSystemMetrics(1)
                 rect = [0, 0, w, h]
             elif tup[1] == win32con.SW_SHOWNORMAL:
-                rect = list(win32gui.GetWindowRect(hwnd))
+                rect = list(win32gui.GetWindowRect(self.game_hwnd))
             else:
                 continue
             # cut off windows title  from the image
@@ -94,6 +102,14 @@ class LF2_State:
             for id in self.players:
                 self.players[id].update_status()
                 time.sleep(0.01)
+
+    def reward(self):
+        '''
+        Calculate the corresponding rewards of the current state.
+        :return: reward
+        '''
+
+
 
 
 if __name__ == '__main__':
