@@ -1,7 +1,13 @@
 from lf2_util import *
 from LF2_char import *
+from mss import mss
+from win32api import GetSystemMetrics
+import win32gui
+import win32con
 import pyautogui
+import numpy as np
 import time
+import threading
 
 def press_key(keys):
     last_key = ''
@@ -14,6 +20,80 @@ def press_key(keys):
     time.sleep(0.1)
     for key in keys:
         pyautogui.keyUp(key)
+
+class LF2_State:
+    '''
+    Crop a image from the gaming window, and return all players info as well as
+    the current image shown on the display.
+    '''
+    def __init__(self, windows_name, windows_scale=1.0):
+        '''
+        Initialize some parameter.
+        :param windows_name: windows name that we want to crop image from
+        :param windows_scale: Windows scaling param.( Can be seen in the setting Display area.
+        '''
+        self.window_name = windows_name
+        self.window_scale = windows_scale
+        self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
+        self.kill_thread = False
+        self.sct = mss()
+
+        self.players = {0: None, 1: None, 2: None, 3: None,
+                        4: None, 5: None, 6: None, 7: None}
+
+        for i, item in enumerate(self.players.items()):
+            self.players[i] = Player(self.game_hwnd, i)
+
+        self.gaming_screen = None
+
+        self.recoring_thread = threading.Thread(target=self.screen_recording(), daemon=True)
+        self.player_thread = threading.Thread(target=self.player_state(), daemon=True)
+
+    def get_state(self):
+        # return the current state of the game
+        return (self.gaming_screen, self.players)
+
+    def screen_recording(self):
+        '''
+        Update the current gaming scene
+        :return:
+        '''
+        while not self.kill_thread:
+            tup = win32gui.GetWindowPlacement(self.game_hwnd)
+
+            # check if the windows is in max size.
+            if tup[1] == win32con.SW_SHOWMAXIMIZED:
+                w = GetSystemMetrics(0)
+                h = GetSystemMetrics(1)
+                rect = [0, 0, w, h]
+            elif tup[1] == win32con.SW_SHOWNORMAL:
+                rect = list(win32gui.GetWindowRect(hwnd))
+            else:
+                continue
+            # cut off windows title  from the image
+            rect[1] = rect[1] + 28
+
+            pos = {'top': rect[1],
+                   'left': rect[0] + 3,
+                   'height': rect[3] - rect[1] - 3,
+                   'width': rect[2] - rect[0] - 6}
+
+            screen_shot = self.sct.grab(pos)
+            screen_shot = np.array(screen_shot)
+
+            h, w = np.shape(screen_shot)[:2]
+            info_scale = int(h * 0.23175)
+            gaming_info_img = screen_shot[:info_scale]
+            self.gaming_screen = screen_shot[info_scale:]
+            time.sleep(0.01)
+
+
+    def  player_state(self):
+        # return player status
+        while not self.kill_thread:
+            for id in self.players:
+                self.players[id].update_status()
+                time.sleep(0.01)
 
 
 if __name__ == '__main__':

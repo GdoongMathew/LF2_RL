@@ -2,7 +2,7 @@ import winguiauto.winguiauto as winauto
 from win32api import GetSystemMetrics
 import tensorflow as tf
 from mss import mss
-from lf2_state import LF2_State
+from lf2_state import Player
 import logging
 import win32gui
 import win32con
@@ -17,12 +17,12 @@ def screen_record(windows_name, set_window_resize=1.0):
     sct = mss()
     now_time = time.time()
 
-    gameing_stat = LF2_State(hwnd)
+    player_state = Player(hwnd, 1)
 
     while(1):
 
         tup = win32gui.GetWindowPlacement(hwnd)
-        gameing_stat.get_process_info()
+        player_state.update_status()
 
         if tup[1] == win32con.SW_SHOWMAXIMIZED:
             w = GetSystemMetrics(0)
