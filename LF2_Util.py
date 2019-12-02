@@ -8,11 +8,11 @@ import win32process
 
 Char_Name = {
     "Template": 0, "Julian":    0, "Firzen":    0, "LouisEX":   0,
-	"Bat":      0, "Justin":    0, "Knight":    0, "Jan":       0,
-	"Monk":     0, "Sorcerer":  0, "Jack":      0, "Mark":      0,
-	"Hunter":   0, "Bandit":    0, "Deep":      0, "John":      0,
-	"Henry":    0, "Rudolf":    0, "Louis":     0, "Firen":     0,
-	"Freeze":   0, "Dennis":    0, "Woody":     0, "Davis":     0
+    "Bat":      0, "Justin":    0, "Knight":    0, "Jan":       0,
+    "Monk":     0, "Sorcerer":  0, "Jack":      0, "Mark":      0,
+    "Hunter":   0, "Bandit":    0, "Deep":      0, "John":      0,
+    "Henry":    0, "Rudolf":    0, "Louis":     0, "Firen":     0,
+    "Freeze":   0, "Dennis":    0, "Woody":     0, "Davis":     0
 }
 
 class Lf2AddressTable:
@@ -57,7 +57,7 @@ class Lf2AddressTable:
 
 
 class ProcessReading:
-    # Reading process memory from certain memery address
+    # Reading process memory from certain memory address
     def __init__(self, win_handle):
         # Windows
         self.win_handle = win_handle
@@ -74,7 +74,6 @@ class ProcessReading:
         PROCESS_VM_READ = 0x0010
 
         self.proc_handle = self.get_process_handle(self.pid, PROCESS_VM_OPERATION | PROCESS_VM_READ)
-
 
     def get_process_handle(self, dwProcessId, dwDesiredAccess, bInheritHandle=False):
         handle = self.OpenProcess(dwDesiredAccess, bInheritHandle, dwProcessId)
@@ -126,10 +125,10 @@ class Player:
         self.Mp = 0
         self.Mp_Usage = 0
 
-        self.picking = 0
+        self.Picking = 0
         self.Owner = 0
         self.Enemy = 0
-        self.team = 0
+        self.Team = 0
         self.is_active = False
         self.is_alive = False
 
@@ -165,8 +164,8 @@ class Player:
         self.z_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.z_pos))
 
         self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
-        self.picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
-        self.team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
+        self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
+        self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
     def get_player_char(self):
         # get current player character

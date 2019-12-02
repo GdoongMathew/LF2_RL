@@ -1,10 +1,10 @@
-from LF2_State import LF2_State
+from LF2_State import LF2State
 import cv2
 
 
 def main():
 
-    lf2_stat = LF2_State('Little Fighter 2', windows_scale=1.25)
+    lf2_stat = LF2State('Little Fighter 2', windows_scale=1.25)
 
     while True:
         img, player = lf2_stat.get_state(id=1)

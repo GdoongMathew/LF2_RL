@@ -1,4 +1,4 @@
-class Lf2_Char:
+class Lf2Char:
     def  __init__(self, u='p', d=';', l='l', r="'", att='t', jump='y', defend='u'):
         self.u = u              # Up
         self.d = d              # Down
@@ -34,7 +34,8 @@ class Lf2_Char:
     def sp_attact6(self):
         return NotImplementedError
 
-class John(Lf2_Char):
+
+class John(Lf2Char):
     def sp_attact1(self, direction='right'):
         # Energy Blast
         return self.deffend() + getattr(self, direction)() + self.attact()
@@ -51,7 +52,8 @@ class John(Lf2_Char):
         # Heal myself
         return self.deffend() + self.down() + self.jump()
 
-class Firen(Lf2_Char):
+
+class Firen(Lf2Char):
     def sp_attact1(self, direction='right', num=1):
         # Fire Ball
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -65,7 +67,8 @@ class Firen(Lf2_Char):
         # Explosion
         return self.down() + self.up() + self.jump()
 
-class Freeze(Lf2_Char):
+
+class Freeze(Lf2Char):
     def sp_attact1(self, direction='right', num=1):
         # Ice Blast
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -79,7 +82,41 @@ class Freeze(Lf2_Char):
         # Whirlwind
         return self.deffend() + self.up() + self.jump()
 
-class Julian(Lf2_Char):
+
+class Jan(Lf2Char):
+    def sp_attact1(self):
+        # Devil's Judgement
+        return self.deffend() + self.up() + self.attact()
+
+    def sp_attact2(self):
+        # Angel's Blessing
+        return self.deffend() + self.up() + self.jump()
+
+class Justin(Lf2Char):
+    def sp_attact1(self, num=1):
+        # Wolf Punch
+        return self.deffend() + self.down() + self.attact() * 1
+
+    def sp_attact2(self, direction='right'):
+        # Energy Blast
+        return self.deffend() + getattr(self, direction)() + self.attact()
+
+
+class Bat(Lf2Char):
+    def sp_attact1(self, direction='right'):
+        # Speed Punch
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact2(self, direction='right'):
+        # Eye Laser
+        return self.deffend() + getattr(self, direction)() + self.attact()
+
+    def sp_attact3(self):
+        # Sommon Bats
+        return self.deffend() + self.up() + self.jump()
+
+
+class Julian(Lf2Char):
     def sp_attact1(self, direction='right'):
         # Soul Punch
         return getattr(self, direction)() + getattr(self, direction)() + self.attact()

@@ -1,4 +1,5 @@
 from LF2_Util import *
+from LF2_char import *
 from mss import mss
 from win32api import GetSystemMetrics
 import numpy as np
@@ -21,7 +22,8 @@ def press_key(keys):
     for key in keys:
         pyautogui.keyUp(key)
 
-class LF2_State:
+
+class LF2State:
     '''
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
@@ -57,9 +59,9 @@ class LF2_State:
         if id:
             if  not isinstance(id, int):
                 raise TypeError('id must be integer.')
-            return (self.gaming_screen, self.players[id])
+            return self.gaming_screen, self.players[id]
         else:
-            return (self.gaming_screen, self.players)
+            return self.gaming_screen, self.players
 
     def screen_recording(self):
         '''
@@ -95,8 +97,7 @@ class LF2_State:
             self.gaming_screen = screen_shot[info_scale:]
             time.sleep(0.01)
 
-
-    def  player_state(self):
+    def player_state(self):
         # return player status
         while not self.kill_thread:
             for id in self.players:
@@ -108,6 +109,10 @@ class LF2_State:
         Calculate the corresponding rewards of the current state.
         :return: reward
         '''
+        enemy_hp = 0
+        pass
+
+
 
 
 
@@ -118,10 +123,11 @@ if __name__ == '__main__':
     hwnd = winauto.findTopWindow(wantedText='Little Fighter 2')
 
     my_player = Player(hwnd, 0)
-    com_player = Player(hwnd, 1, com=False)
+    my_player_1 = Player(hwnd, 1)
+    com_player = Player(hwnd, 2, com=True)
 
     print(my_player.name)
-    print(com_player.name)
+    print(my_player_1.name)
 
     ply1 = globals()['Julian']()
 
@@ -130,8 +136,11 @@ if __name__ == '__main__':
     while 1:
 
         my_player.update_status()
+        my_player_1.update_status()
         com_player.update_status()
 
+        print(my_player.Hp)
+        print(my_player_1.Hp)
         print(com_player.Hp)
         time.sleep(5)
 
