@@ -10,10 +10,12 @@ import pyautogui
 import time
 import threading
 
+
 def press_key(keys):
     last_key = ''
     for key in keys:
         if key == last_key:
+            # to prevent not sending key event if two consecutive identical keys.
             # time.sleep(0.1)
             pyautogui.keyUp(key)
         pyautogui.keyDown(key)
@@ -23,17 +25,18 @@ def press_key(keys):
         pyautogui.keyUp(key)
 
 
-class LF2State:
-    '''
+class LF2Env:
+    """
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
-    '''
-    def __init__(self, windows_name, windows_scale=1.0):
-        '''
+    """
+
+    def __init__(self, windows_name, windows_scale=1.0, player_id=2):
+        """
         Initialize some parameter.
         :param windows_name: windows name that we want to crop image from
         :param windows_scale: Windows scaling param.( Can be seen in the setting Display area.
-        '''
+        """
         self.window_name = windows_name
         self.window_scale = windows_scale
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
@@ -46,6 +49,9 @@ class LF2State:
         for i, item in enumerate(self.players.items()):
             self.players[i] = Player(self.game_hwnd, i)
 
+        self.my_player_id = player_id
+        self.my_player = self.players[player_id - 1]
+
         self.gaming_screen = None
 
         self.recording_thread = threading.Thread(target=self.screen_recording, daemon=True)
@@ -57,17 +63,16 @@ class LF2State:
     def get_state(self, id=None):
         # return the current state of the game
         if id:
-            if  not isinstance(id, int):
+            if not isinstance(id, int):
                 raise TypeError('id must be integer.')
             return self.gaming_screen, self.players[id]
         else:
             return self.gaming_screen, self.players
 
     def screen_recording(self):
-        '''
+        """
         Update the current gaming scene
-        :return:
-        '''
+        """
         while not self.kill_thread:
             tup = win32gui.GetWindowPlacement(self.game_hwnd)
 
@@ -98,28 +103,43 @@ class LF2State:
             time.sleep(0.01)
 
     def player_state(self):
-        # return player status
+        """
+        Return player status
+        """
         while not self.kill_thread:
-            for id in self.players:
-                self.players[id].update_status()
+            for i in self.players:
+                self.players[i].update_status()
                 time.sleep(0.01)
 
+    @staticmethod
+    def reset(default_ok='a'):
+        """
+        Restart the game
+        :param default_ok: default ok key
+        :return:
+        """
+        press_key(['f4', default_ok])
+
     def reward(self):
-        '''
+        """
         Calculate the corresponding rewards of the current state.
         :return: reward
-        '''
+        """
         enemy_hp = 0
-        pass
+        team_hp = 0
 
+        for i in self.players:
+            if self.players[i].Team == self.my_player.Team:
+                team_hp += self.players[i].Hp
+            else:
+                enemy_hp += self.players[i].Hp
 
-
-
+        # Most simple reward?
+        return team_hp - enemy_hp
 
 
 if __name__ == '__main__':
 
-    import winguiauto.winguiauto as winauto
     hwnd = winauto.findTopWindow(wantedText='Little Fighter 2')
 
     my_player = Player(hwnd, 0)

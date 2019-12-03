@@ -1,3 +1,6 @@
+# All following code is inspired by LF2 Dashboard
+# LF2 Dashboard github: https://github.com/xmfcx/LF2-Dashboard/tree/master/LF2Dashboard
+
 from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
@@ -5,6 +8,8 @@ import ctypes
 import pymem
 import win32process
 
+PROCESS_VM_OPERATION = 0x0008
+PROCESS_VM_READ = 0x0010
 
 Char_Name = {
     "Template": 0, "Julian":    0, "Firzen":    0, "LouisEX":   0,
@@ -15,7 +20,9 @@ Char_Name = {
     "Freeze":   0, "Dennis":    0, "Woody":     0, "Davis":     0
 }
 
+
 class Lf2AddressTable:
+    # All shifting address
     kills = 0x358
     Attack = 0x348
     Hp = 0x2FC
@@ -70,9 +77,6 @@ class ProcessReading:
         self.GetLastError.restype = DWORD
         self.GetLastError.argtypes = ()
 
-        PROCESS_VM_OPERATION = 0x0008
-        PROCESS_VM_READ = 0x0010
-
         self.proc_handle = self.get_process_handle(self.pid, PROCESS_VM_OPERATION | PROCESS_VM_READ)
 
     def get_process_handle(self, dwProcessId, dwDesiredAccess, bInheritHandle=False):
@@ -109,9 +113,11 @@ class ProcessReading:
 class Player:
     def __init__(self, game_proc_handle, idx, com=False):
         self.game_reading = ProcessReading(game_proc_handle)
-        self.player_address = self.game_reading.read_int(Lf2AddressTable.Player[idx] if not com
-                                                         else Lf2AddressTable.Computer[idx])
-
+        self.idx = idx
+        self.is_computer = com
+        self.player_address = self.game_reading.read_int(Lf2AddressTable.Player[self.idx]
+                                                         if not self.is_computer
+                                                         else Lf2AddressTable.Computer[self.idx])
         self.DataFiles = []
         self.data_address = self.address_shift(Lf2AddressTable.PDataPointer)
         self.name = self.get_player_char()
@@ -167,8 +173,15 @@ class Player:
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
         self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
+        self.is_alive = self.Hp > 0
+        act_add = Lf2AddressTable.PlayerInGame[self.idx] if self.is_computer \
+            else Lf2AddressTable.CPlayerInGame[self.idx]
+        x = self.game_reading.read_int(act_add)
+        self.is_active = self.game_reading.read_int(act_add) == 1
+
     def get_player_char(self):
         # get current player character
+        # Todo this function still need to be fixed, still can't read the correct name of a player character
         _data_address = self.game_reading.read_int(Lf2AddressTable.DataPointer)
         for i in range(len(Lf2AddressTable.DataFile)):
             self.DataFiles.append(self.game_reading.read_int(_data_address + i * 4))
