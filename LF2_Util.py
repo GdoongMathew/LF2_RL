@@ -22,7 +22,7 @@ Char_Name = {
 
 
 class Lf2AddressTable:
-    # All shifting address
+    # All shifting address value
     kills = 0x358
     Attack = 0x348
     Hp = 0x2FC
@@ -147,7 +147,11 @@ class Player:
         self.total_time = 0
 
     def address_shift(self, shift):
-        # return a shifted address by adding a player address
+        """
+        Shifting the address by adding the player address.
+        :param shift: desired shifting address value
+        :return: shifted address
+        """
         return self.player_address + shift
 
     def update_status(self):
@@ -158,7 +162,9 @@ class Player:
 
         self.Attack = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Attack))
         self.kills = self.game_reading.read_int(self.address_shift(Lf2AddressTable.kills))
-        self.Hp = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp))
+
+        hp = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp))
+        self.Hp = hp if hp >= 0 else 0  # Just for the sake of not letting health point below 0
         self.Hp_Dark = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp_Dark))
         self.Hp_Lost = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp_Lost))
 
@@ -173,11 +179,10 @@ class Player:
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
         self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
-        self.is_alive = self.Hp > 0
-        act_add = Lf2AddressTable.PlayerInGame[self.idx] if self.is_computer \
-            else Lf2AddressTable.CPlayerInGame[self.idx]
-        x = self.game_reading.read_int(act_add)
+        act_add = Lf2AddressTable.CPlayerInGame[self.idx] if self.is_computer \
+            else Lf2AddressTable.PlayerInGame[self.idx]
         self.is_active = self.game_reading.read_int(act_add) == 1
+        self.is_alive = self.Hp > 0 if self.is_active else False
 
     def get_player_char(self):
         # get current player character
