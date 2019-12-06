@@ -1,3 +1,4 @@
+
 class Lf2Char:
     def __init__(self, u='p', d=';', l='l', r="'", att='t', jump='y', defend='u'):
         self.u = u              # Up
@@ -7,6 +8,19 @@ class Lf2Char:
         self.att = att          # Attact
         self.jum = jump         # Jump
         self.defend = defend    # Defend
+
+    def action_space(self):
+        """
+        Get the action space of a character.
+        :return: return a list of possible actions.
+        """
+        # Remove all
+        # Probably a better and more elegant way of doing this?
+        action_list = [func for func in dir(self) if
+                       (callable(getattr(self, func)) and
+                        func != 'action_space' and
+                        func[:2] != '__')]
+        return action_list
 
     def up(self):
         return self.u
@@ -28,24 +42,6 @@ class Lf2Char:
 
     def deffend(self):
         return self.defend
-
-    def sp_attact1(self):
-        raise NotImplementedError
-
-    def sp_attact2(self):
-        raise NotImplementedError
-
-    def sp_attact3(self):
-        raise NotImplementedError
-
-    def sp_attact4(self):
-        raise NotImplementedError
-
-    def sp_attact5(self):
-        raise NotImplementedError
-
-    def sp_attact6(self):
-        return NotImplementedError
 
 
 class John(Lf2Char):
@@ -168,4 +164,4 @@ class Julian(Lf2Char):
 
 if __name__ == '__main__':
     p1 = Julian()
-    print(p1.sp_attact5())
+    print(p1.action_space())
