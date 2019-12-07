@@ -8,21 +8,23 @@ import win32gui
 import win32con
 import pyautogui
 import time
+import cv2
 import threading
 
 
 def press_key(keys):
     last_key = ''
-    for key in keys:
-        if key == last_key:
-            # to prevent not sending key event if two consecutive identical keys.
-            # time.sleep(0.1)
+    if keys is not None:
+        for key in keys:
+            if key == last_key:
+                # to prevent not sending key event if two consecutive identical keys.
+                # time.sleep(0.1)
+                pyautogui.keyUp(key)
+            pyautogui.keyDown(key)
+            last_key = key
+        time.sleep(0.1)
+        for key in keys:
             pyautogui.keyUp(key)
-        pyautogui.keyDown(key)
-        last_key = key
-    time.sleep(0.1)
-    for key in keys:
-        pyautogui.keyUp(key)
 
 
 class LF2Env:
@@ -55,17 +57,17 @@ class LF2Env:
         self.gaming_screen = None
 
         self.recording_thread = threading.Thread(target=self.screen_recording, daemon=True)
-        self.player_thread = threading.Thread(target=self.player_state, daemon=True)
+        self.player_thread = threading.Thread(target=self.player_update, daemon=True)
 
         self.recording_thread.start()
         self.player_thread.start()
 
-    def get_state(self, id=None):
+    def get_state(self, player_id=None):
         # return the current state of the game
-        if id:
-            if not isinstance(id, int):
+        if player_id:
+            if not isinstance(player_id, int):
                 raise TypeError('id must be integer.')
-            return self.gaming_screen, self.players[id]
+            return self.gaming_screen, self.players[player_id]
         else:
             return self.gaming_screen, self.players
 
@@ -102,7 +104,7 @@ class LF2Env:
             self.gaming_screen = screen_shot[info_scale:]
             time.sleep(0.01)
 
-    def player_state(self):
+    def player_update(self):
         """
         Return player status
         """
@@ -115,10 +117,28 @@ class LF2Env:
     def reset(default_ok='a'):
         """
         Restart the game
+        Currently still need the game to be on the active window.
         :param default_ok: default ok key
         :return:
         """
         press_key(['f4', default_ok])
+
+        # Todo figure out how to send keyboard event to a non-active windows.
+        # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
+        # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
+        # PostMessage(chile_hwnd, win32con.WM_KEYUP, win32con.VK_F4, 0)
+        # PostMessage(chile_hwnd, win32con.WM_CHAR, default_ok, 0)
+
+    def step(self, action_id):
+        """
+        Perform an action.
+        :param action_id: an action id of the action space
+        :return:
+        """
+        act_name = self.get_action_space()[action_id]
+        act_str = self.my_player.perform_action(act_name)
+        print(act_name)
+        press_key(act_str)
 
     def reward(self):
         """
@@ -136,6 +156,18 @@ class LF2Env:
 
         # Most simple reward?
         return team_hp - enemy_hp
+
+    def render(self):
+        if self.gaming_screen is not None:
+            cv2.imshow('lf2_env', self.gaming_screen)
+            cv2.waitKey(1)
+
+    def get_action_space(self):
+        """
+        get a list of the current player actions
+        :return: a list of actions
+        """
+        return self.my_player.get_action_list()
 
 
 if __name__ == '__main__':

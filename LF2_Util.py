@@ -4,6 +4,7 @@
 from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
+from LF2_char import *
 import ctypes
 import pymem
 import win32process
@@ -113,14 +114,16 @@ class ProcessReading:
 class Player:
     def __init__(self, game_proc_handle, idx, com=False):
         self.game_reading = ProcessReading(game_proc_handle)
-        self.idx = idx
+        self.idx = idx  # 0 ~ 7
         self.is_computer = com
         self.player_address = self.game_reading.read_int(Lf2AddressTable.Player[self.idx]
                                                          if not self.is_computer
                                                          else Lf2AddressTable.Computer[self.idx])
+
         self.DataFiles = []
-        self.data_address = self.address_shift(Lf2AddressTable.PDataPointer)
+        self.DataAddress = self.address_shift(Lf2AddressTable.PDataPointer)
         self.name = self.get_player_char()
+        self.lf2_char = globals()[self.name]()
 
         self.kills = 0
         self.Attack = 0
@@ -154,12 +157,14 @@ class Player:
         """
         return self.player_address + shift
 
-    def update_status(self):
+    def update_status(self, reset=False):
 
-        self.name = self.get_player_char()
+        if reset:
+            self.name = self.get_player_char()
+            self.lf2_char = globals()[self.name]
+            self.DataAddress = self.game_reading.read_int(self.address_shift(Lf2AddressTable.PDataPointer))
 
         self.game_state = self.game_reading.read_ushort(Lf2AddressTable.GameState)
-
         self.Attack = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Attack))
         self.kills = self.game_reading.read_int(self.address_shift(Lf2AddressTable.kills))
 
@@ -185,19 +190,41 @@ class Player:
         self.is_alive = self.Hp > 0 if self.is_active else False
 
     def get_player_char(self):
+        """
+        Get the character of the player.
+        :return: the name of the character
+        """
         # get current player character
         # Todo this function still need to be fixed, still can't read the correct name of a player character
         _data_address = self.game_reading.read_int(Lf2AddressTable.DataPointer)
         for i in range(len(Lf2AddressTable.DataFile)):
-            self.DataFiles.append(self.game_reading.read_int(_data_address + i * 4))
+            Lf2AddressTable.DataFile[i] = self.game_reading.read_int(_data_address + i * 4)
 
         for i, item in enumerate(Char_Name):
-            Char_Name[item] = self.DataFiles[i]
+            Char_Name[item] = Lf2AddressTable.DataFile[i]
 
-        for name, i in Char_Name.items():
-            if i == self.data_address:
-                return name
-        return ''
+        # todo still need to be fixed.= =
+        # for name, i in Char_Name.items():
+        #     if i == self.DataAddress:
+        #         return name
+        # return ''
 
+        return 'Julian'
 
+    def get_action_list(self):
+        """
+        return list of action space if exists, else return None
+        :return: list of available actions.
+        """
+        if len(self.name):
+            lf2_char = globals()[self.name]()
+            return lf2_char.action_space()
+        return None
 
+    def perform_action(self, action_str):
+        """
+
+        :param action_str:
+        :return:
+        """
+        return getattr(self.lf2_char, action_str)()

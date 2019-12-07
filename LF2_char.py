@@ -1,4 +1,5 @@
 
+
 class Lf2Char:
     def __init__(self, u='p', d=';', l='l', r="'", att='t', jump='y', defend='u'):
         self.u = u              # Up
@@ -21,6 +22,10 @@ class Lf2Char:
                         func != 'action_space' and
                         func[:2] != '__')]
         return action_list
+
+    @staticmethod
+    def idle():
+        return None
 
     def up(self):
         return self.u
