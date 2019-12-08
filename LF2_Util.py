@@ -5,6 +5,9 @@ from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
 from LF2_char import *
+from sys import byteorder
+from inspect import signature
+import functools
 import ctypes
 import pymem
 import win32process
@@ -46,6 +49,8 @@ class Lf2AddressTable:
     Enemy = 0x360
     Team = 0x364
     Invincible = 0x8
+
+    Facing = 0x80
 
     PDataPointer = 0x368
     DataPointer = 0x4592D4
@@ -149,6 +154,8 @@ class Player:
         self.time = 0
         self.total_time = 0
 
+        self.Facing = None
+
     def address_shift(self, shift):
         """
         Shifting the address by adding the player address.
@@ -180,12 +187,16 @@ class Player:
         self.y_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.y_pos))
         self.z_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.z_pos))
 
+        facing_byte = self.game_reading.read_bytes(self.address_shift(Lf2AddressTable.Facing), 1)
+        self.Facing = 'left' if bool.from_bytes(facing_byte, byteorder) else 'right'
+
         self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
         self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
         act_add = Lf2AddressTable.CPlayerInGame[self.idx] if self.is_computer \
             else Lf2AddressTable.PlayerInGame[self.idx]
+
         self.is_active = self.game_reading.read_int(act_add) == 1
         self.is_alive = self.Hp > 0 if self.is_active else False
 
@@ -223,8 +234,11 @@ class Player:
 
     def perform_action(self, action_str):
         """
-
         :param action_str:
         :return:
         """
+        act_func = getattr(self.lf2_char, action_str)
+        sig = str(signature(act_func))
+        if 'direction' in sig:
+            return functools.partial(act_func, self.Facing)()
         return getattr(self.lf2_char, action_str)()

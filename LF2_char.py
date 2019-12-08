@@ -48,6 +48,9 @@ class Lf2Char:
     def deffend(self):
         return self.defend
 
+    def run(self, direction='right'):
+        return getattr(self, direction)() + getattr(self, direction)()
+
 
 class John(Lf2Char):
     def sp_attact1(self, direction='right'):

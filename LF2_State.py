@@ -12,28 +12,13 @@ import cv2
 import threading
 
 
-def press_key(keys):
-    last_key = ''
-    if keys is not None:
-        for key in keys:
-            if key == last_key:
-                # to prevent not sending key event if two consecutive identical keys.
-                # time.sleep(0.1)
-                pyautogui.keyUp(key)
-            pyautogui.keyDown(key)
-            last_key = key
-        time.sleep(0.1)
-        for key in keys:
-            pyautogui.keyUp(key)
-
-
 class LF2Env:
     """
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
     """
 
-    def __init__(self, windows_name, windows_scale=1.0, player_id=2):
+    def __init__(self, windows_name, windows_scale=1.0, player_id=2, show=True):
         """
         Initialize some parameter.
         :param windows_name: windows name that we want to crop image from
@@ -41,6 +26,7 @@ class LF2Env:
         """
         self.window_name = windows_name
         self.window_scale = windows_scale
+        self.show = show
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
         self.kill_thread = False
         self.sct = mss()
@@ -56,8 +42,8 @@ class LF2Env:
 
         self.gaming_screen = None
 
-        self.recording_thread = threading.Thread(target=self.screen_recording, daemon=True)
-        self.player_thread = threading.Thread(target=self.player_update, daemon=True)
+        self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
+        self.player_thread = threading.Thread(target=self.update_players, daemon=True)
 
         self.recording_thread.start()
         self.player_thread.start()
@@ -71,7 +57,7 @@ class LF2Env:
         else:
             return self.gaming_screen, self.players
 
-    def screen_recording(self):
+    def update_game_img(self):
         """
         Update the current gaming scene
         """
@@ -104,7 +90,11 @@ class LF2Env:
             self.gaming_screen = screen_shot[info_scale:]
             time.sleep(0.01)
 
-    def player_update(self):
+            if self.show:
+                cv2.imshow('lf2_env', self.gaming_screen)
+                cv2.waitKey(1)
+
+    def update_players(self):
         """
         Return player status
         """
@@ -113,21 +103,34 @@ class LF2Env:
                 self.players[i].update_status()
                 time.sleep(0.01)
 
-    @staticmethod
-    def reset(default_ok='a'):
+    def reset(self, default_ok='a'):
         """
         Restart the game
         Currently still need the game to be on the active window.
         :param default_ok: default ok key
-        :return:
         """
-        press_key(['f4', default_ok])
+        self.press_key(['f4', default_ok])
 
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
         # PostMessage(chile_hwnd, win32con.WM_KEYUP, win32con.VK_F4, 0)
         # PostMessage(chile_hwnd, win32con.WM_CHAR, default_ok, 0)
+
+    @staticmethod
+    def press_key(keys):
+        last_key = ''
+        if keys is not None:
+            for key in keys:
+                if key == last_key:
+                    # to prevent not sending key event if two consecutive identical keys.
+                    # time.sleep(0.1)
+                    pyautogui.keyUp(key)
+                pyautogui.keyDown(key)
+                last_key = key
+            time.sleep(0.1)
+            for key in keys:
+                pyautogui.keyUp(key)
 
     def step(self, action_id):
         """
@@ -138,7 +141,7 @@ class LF2Env:
         act_name = self.get_action_space()[action_id]
         act_str = self.my_player.perform_action(act_name)
         print(act_name)
-        press_key(act_str)
+        self.press_key(act_str)
 
     def reward(self):
         """
@@ -156,11 +159,6 @@ class LF2Env:
 
         # Most simple reward?
         return team_hp - enemy_hp
-
-    def render(self):
-        if self.gaming_screen is not None:
-            cv2.imshow('lf2_env', self.gaming_screen)
-            cv2.waitKey(1)
 
     def get_action_space(self):
         """
