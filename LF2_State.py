@@ -11,6 +11,8 @@ import time
 import cv2
 import threading
 
+pyautogui.FAILSAFE = False
+
 
 class LF2Env:
     """
@@ -41,6 +43,8 @@ class LF2Env:
         self.my_player = self.players[player_id - 1]
 
         self.gaming_screen = None
+        self.game_over = False
+        self.restart = True
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
         self.player_thread = threading.Thread(target=self.update_players, daemon=True)
@@ -83,12 +87,13 @@ class LF2Env:
 
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
+            screen_shot = cv2.cvtColor(screen_shot, cv2.COLOR_BGR2GRAY)
 
             h, w = np.shape(screen_shot)[:2]
             info_scale = int(h * 0.23175)
             gaming_info_img = screen_shot[:info_scale]
             self.gaming_screen = screen_shot[info_scale:]
-            time.sleep(0.01)
+            # time.sleep(0.01)
 
             if self.show:
                 cv2.imshow('lf2_env', self.gaming_screen)
@@ -99,9 +104,16 @@ class LF2Env:
         Return player status
         """
         while not self.kill_thread:
+            time.sleep(0.01)
+            team = []
             for i in self.players:
-                self.players[i].update_status()
-                time.sleep(0.01)
+                player_i = self.players[i]
+                player_i.update_status(reset=self.restart)
+                if player_i.is_active and player_i.is_alive:
+                    team.append(player_i.Team)
+            self.restart = False
+            if len(set(team)) == 1:
+                self.game_over = True
 
     def reset(self, default_ok='a'):
         """
@@ -110,7 +122,8 @@ class LF2Env:
         :param default_ok: default ok key
         """
         self.press_key(['f4', default_ok])
-
+        self.game_over = False
+        self.restart = True
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
@@ -124,7 +137,6 @@ class LF2Env:
             for key in keys:
                 if key == last_key:
                     # to prevent not sending key event if two consecutive identical keys.
-                    # time.sleep(0.1)
                     pyautogui.keyUp(key)
                 pyautogui.keyDown(key)
                 last_key = key
@@ -176,8 +188,8 @@ if __name__ == '__main__':
     my_player_1 = Player(hwnd, 1)
     com_player = Player(hwnd, 2, com=True)
 
-    print(my_player.name)
-    print(my_player_1.name)
+    # print(my_player.name)
+    # print(my_player_1.name)
 
     ply1 = globals()['Julian']()
 
@@ -189,9 +201,9 @@ if __name__ == '__main__':
         my_player_1.update_status()
         com_player.update_status()
 
-        print(my_player.Hp)
-        print(my_player_1.Hp)
-        print(com_player.Hp)
+        # print(my_player.Hp)
+        # print(my_player_1.Hp)
+        # print(com_player.Hp)
         time.sleep(5)
 
         if time.time() - now >= 12000:

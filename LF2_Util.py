@@ -154,7 +154,7 @@ class Player:
         self.time = 0
         self.total_time = 0
 
-        self.Facing = None
+        self.Facing = 'right'
 
     def address_shift(self, shift):
         """
@@ -168,8 +168,9 @@ class Player:
 
         if reset:
             self.name = self.get_player_char()
-            self.lf2_char = globals()[self.name]
+            self.lf2_char = globals()[self.name]()
             self.DataAddress = self.game_reading.read_int(self.address_shift(Lf2AddressTable.PDataPointer))
+            self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
         self.game_state = self.game_reading.read_ushort(Lf2AddressTable.GameState)
         self.Attack = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Attack))
@@ -192,12 +193,11 @@ class Player:
 
         self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
-        self.Team = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Team))
 
         act_add = Lf2AddressTable.CPlayerInGame[self.idx] if self.is_computer \
             else Lf2AddressTable.PlayerInGame[self.idx]
 
-        self.is_active = self.game_reading.read_int(act_add) == 1
+        self.is_active = bool.from_bytes(self.game_reading.read_bytes(act_add, 1), byteorder)
         self.is_alive = self.Hp > 0 if self.is_active else False
 
     def get_player_char(self):
@@ -240,5 +240,6 @@ class Player:
         act_func = getattr(self.lf2_char, action_str)
         sig = str(signature(act_func))
         if 'direction' in sig:
+            print(self.Facing)
             return functools.partial(act_func, self.Facing)()
         return getattr(self.lf2_char, action_str)()

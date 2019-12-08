@@ -10,6 +10,8 @@ def main():
 
     time.sleep(0.5)
 
+    now = time.time()
+
     while True:
         img, player = lf2_env.get_state(player_id=1)
 
@@ -17,11 +19,15 @@ def main():
         act_id = np.random.randint(len(action))
         lf2_env.step(act_id)
 
-        time.sleep(0.1)
+        time.sleep(1)
 
-        if not player.is_alive:
+        if lf2_env.game_over:
             lf2_env.reset()
             print('reset')
+
+        if time.time() - now > 120:
+            lf2_env.kill_thread = True
+            break
 
 
 if __name__ == '__main__':
