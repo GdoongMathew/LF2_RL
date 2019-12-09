@@ -4,7 +4,7 @@
 from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
-from LF2_char import *
+from lf2_gym.lf2_gym.envs.LF2_char import *
 from sys import byteorder
 from inspect import signature
 import functools
@@ -206,7 +206,6 @@ class Player:
         :return: the name of the character
         """
         # get current player character
-        # Todo this function still need to be fixed, still can't read the correct name of a player character
         _data_address = self.game_reading.read_int(Lf2AddressTable.DataPointer)
         for i in range(len(Lf2AddressTable.DataFile)):
             Lf2AddressTable.DataFile[i] = self.game_reading.read_int(_data_address + i * 4)
@@ -214,7 +213,7 @@ class Player:
         for i, item in enumerate(Char_Name):
             Char_Name[item] = Lf2AddressTable.DataFile[i]
 
-        # todo still need to be fixed.= =
+        # Todo this function still need to be fixed, still can't read the correct name of a player character
         # for name, i in Char_Name.items():
         #     if i == self.DataAddress:
         #         return name

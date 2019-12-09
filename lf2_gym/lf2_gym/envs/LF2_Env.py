@@ -1,9 +1,8 @@
-from LF2_Util import *
-from LF2_char import *
+from lf2_gym.lf2_gym.envs.LF2_Util import *
 from mss import mss
 from win32api import GetSystemMetrics
 import numpy as np
-import winguiauto.winguiauto as winauto
+from lf2_gym.lf2_gym.envs.winguiauto import winguiauto as winauto
 import win32gui
 import win32con
 import pyautogui
@@ -11,14 +10,19 @@ import time
 import cv2
 import threading
 
+import gym
+from gym import spaces
+
 pyautogui.FAILSAFE = False
 
 
-class LF2Env:
+class Lf2Env(gym.Env):
     """
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
     """
+    metadata = {'render.modes': ['human', 'console'],
+                'video.frames_per_second': 350}
 
     def __init__(self, windows_name, windows_scale=1.0, player_id=2, show=True):
         """
@@ -26,6 +30,8 @@ class LF2Env:
         :param windows_name: windows name that we want to crop image from
         :param windows_scale: Windows scaling param.( Can be seen in the setting Display area.
         """
+        super(Lf2Env, self).__init__()
+
         self.window_name = windows_name
         self.window_scale = windows_scale
         self.show = show
@@ -51,6 +57,10 @@ class LF2Env:
 
         self.recording_thread.start()
         self.player_thread.start()
+
+        self.action_space = spaces.discrete
+
+        print('Lf2 Environment initialized.')
 
     def get_state(self, player_id=None):
         # return the current state of the game
@@ -122,13 +132,15 @@ class LF2Env:
         :param default_ok: default ok key
         """
         self.press_key(['f4', default_ok])
-        self.game_over = False
-        self.restart = True
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
         # PostMessage(chile_hwnd, win32con.WM_KEYUP, win32con.VK_F4, 0)
         # PostMessage(chile_hwnd, win32con.WM_CHAR, default_ok, 0)
+
+        self.game_over = False
+        self.restart = True
+        print('Env reset.')
 
     @staticmethod
     def press_key(keys):
@@ -146,16 +158,27 @@ class LF2Env:
 
     def step(self, action_id):
         """
-        Perform an action.
-        :param action_id: an action id of the action space
+        Take an action within the environment
+        :param action_id: an action id from the action space
         :return:
         """
         act_name = self.get_action_space()[action_id]
-        act_str = self.my_player.perform_action(act_name)
         print(act_name)
-        self.press_key(act_str)
+        self.press_key(self.my_player.perform_action(act_name))
 
-    def reward(self):
+        ob = self.get_state()
+        reward = self.get_reward()
+        info = ()
+
+        return ob, reward, self.game_over, info
+
+    def render(self, mode='human'):
+        # todo need to be modified...
+        if self.gaming_screen is not None:
+            cv2.imshow('lf2_render', self.gaming_screen)
+            cv2.waitKey(1)
+
+    def get_reward(self):
         """
         Calculate the corresponding rewards of the current state.
         :return: reward

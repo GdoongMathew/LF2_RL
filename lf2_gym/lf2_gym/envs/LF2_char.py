@@ -23,8 +23,7 @@ class Lf2Char:
                         func[:2] != '__')]
         return action_list
 
-    @staticmethod
-    def idle():
+    def idle(self):
         return None
 
     def up(self):

@@ -1,12 +1,11 @@
-from LF2_State import LF2Env
+from lf2_gym.lf2_gym.envs.LF2_Env import Lf2Env
 import time
 import numpy as np
-import cv2
 
 
 def main():
 
-    lf2_env = LF2Env('Little Fighter 2', windows_scale=1.25)
+    lf2_env = Lf2Env('Little Fighter 2', windows_scale=1.25)
 
     time.sleep(0.5)
 
