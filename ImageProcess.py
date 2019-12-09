@@ -14,9 +14,9 @@ def main():
     while True:
         img, player = lf2_env.get_state(player_id=1)
 
-        action = player.get_action_list()
-        act_id = np.random.randint(len(action))
-        lf2_env.step(act_id)
+        # action = player.get_action_list()
+        # act_id = np.random.randint(len(action))
+        # lf2_env.step(act_id)
 
         time.sleep(1)
 

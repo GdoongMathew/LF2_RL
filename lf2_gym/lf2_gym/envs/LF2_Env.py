@@ -24,7 +24,7 @@ class Lf2Env(gym.Env):
     metadata = {'render.modes': ['human', 'console'],
                 'video.frames_per_second': 350}
 
-    def __init__(self, windows_name, windows_scale=1.0, player_id=2, show=True):
+    def __init__(self, windows_name, windows_scale=1.0, player_id=1, show=True, down_scale=2.0, gray=True):
         """
         Initialize some parameter.
         :param windows_name: windows name that we want to crop image from
@@ -46,11 +46,16 @@ class Lf2Env(gym.Env):
             self.players[i] = Player(self.game_hwnd, i)
 
         self.my_player_id = player_id
-        self.my_player = self.players[player_id - 1]
+        self.my_player = self.players[player_id]
 
         self.gaming_screen = None
         self.game_over = False
         self.restart = True
+
+        self.img_h = 0
+        self.img_w = 0
+        self.down_scale = down_scale
+        self.gray = gray
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
         self.player_thread = threading.Thread(target=self.update_players, daemon=True)
@@ -58,18 +63,29 @@ class Lf2Env(gym.Env):
         self.recording_thread.start()
         self.player_thread.start()
 
-        self.action_space = spaces.discrete
+        self.action_space = spaces.Discrete(len(self.get_action_space()))
+        # self.observation_space = spaces.Dict({
+        #     'Players': spaces.Dict(self.players),
+        #     'Game_Screen': spaces.MultiDiscrete([self.img_h * self.img_w])
+        # })
 
         print('Lf2 Environment initialized.')
 
     def get_state(self, player_id=None):
         # return the current state of the game
+
+        _downscaled_game_img = cv2.resize(self.gaming_screen, (self.img_w / self.down_scale,
+                                                               self.img_h / self.down_scale))
+
+        if self.gray and len(np.shape(_downscaled_game_img)) >= 3:
+            _downscaled_game_img = cv2.cvtColor(_downscaled_game_img, cv2.COLOR_BGR2GRAY)
+
         if player_id:
             if not isinstance(player_id, int):
                 raise TypeError('id must be integer.')
-            return self.gaming_screen, self.players[player_id]
+            return _downscaled_game_img, self.players[player_id]
         else:
-            return self.gaming_screen, self.players
+            return _downscaled_game_img, self.players
 
     def update_game_img(self):
         """
@@ -88,19 +104,18 @@ class Lf2Env(gym.Env):
             else:
                 continue
             # cut off windows title  from the image
-            rect[1] = rect[1] + 28
+            rect[1] = rect[1] + 44
 
             pos = {'top': rect[1],
                    'left': rect[0] + 3,
-                   'height': rect[3] - rect[1] - 3,
+                   'height': rect[3] - rect[1] - 50,
                    'width': rect[2] - rect[0] - 6}
 
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
-            screen_shot = cv2.cvtColor(screen_shot, cv2.COLOR_BGR2GRAY)
 
-            h, w = np.shape(screen_shot)[:2]
-            info_scale = int(h * 0.23175)
+            self.img_h, self.img_w = np.shape(screen_shot)[:2]
+            info_scale = int(self.img_h * 0.23175)
             gaming_info_img = screen_shot[:info_scale]
             self.gaming_screen = screen_shot[info_scale:]
             # time.sleep(0.01)
@@ -160,7 +175,7 @@ class Lf2Env(gym.Env):
         """
         Take an action within the environment
         :param action_id: an action id from the action space
-        :return:
+        :return: observation, reward, done, info
         """
         act_name = self.get_action_space()[action_id]
         print(act_name)
@@ -168,12 +183,17 @@ class Lf2Env(gym.Env):
 
         ob = self.get_state()
         reward = self.get_reward()
+
+        # currently nothing will return in info
         info = ()
 
         return ob, reward, self.game_over, info
 
     def render(self, mode='human'):
         # todo need to be modified...
+        if mode == 'console':
+            reward = self.get_reward()
+            print('My player Hp: {}. Reward: {}'.format(my_player.Hp, reward))
         if self.gaming_screen is not None:
             cv2.imshow('lf2_render', self.gaming_screen)
             cv2.waitKey(1)
