@@ -4,9 +4,9 @@
 from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
-from lf2_gym.lf2_gym.envs.LF2_char import *
 from sys import byteorder
 from inspect import signature
+from lf2_gym.lf2_envs.LF2_char import *
 import functools
 import ctypes
 import pymem
@@ -27,7 +27,7 @@ Char_Name = {
 
 class Lf2AddressTable:
     # All shifting address value
-    kills = 0x358
+    Kills = 0x358
     Attack = 0x348
     Hp = 0x2FC
     Hp_Dark = 0x300
@@ -130,7 +130,7 @@ class Player:
         self.name = self.get_player_char()
         self.lf2_char = globals()[self.name]()
 
-        self.kills = 0
+        self.Kills = 0
         self.Attack = 0
         self.Hp = 0
         self.Hp_Dark = 0
@@ -174,7 +174,7 @@ class Player:
 
         self.game_state = self.game_reading.read_ushort(Lf2AddressTable.GameState)
         self.Attack = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Attack))
-        self.kills = self.game_reading.read_int(self.address_shift(Lf2AddressTable.kills))
+        self.Kills = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Kills))
 
         hp = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp))
         self.Hp = hp if hp >= 0 else 0  # Just for the sake of not letting health point below 0

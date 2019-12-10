@@ -1,8 +1,9 @@
-from lf2_gym.lf2_gym.envs.LF2_Util import *
+from lf2_gym.lf2_envs.LF2_Util import *
 from mss import mss
 from win32api import GetSystemMetrics
 import numpy as np
-from lf2_gym.lf2_gym.envs.winguiauto import winguiauto as winauto
+from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
+from collections import deque
 import win32gui
 import win32con
 import pyautogui
@@ -21,14 +22,19 @@ class Lf2Env(gym.Env):
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
     """
-    metadata = {'render.modes': ['human', 'console'],
-                'video.frames_per_second': 350}
+    metadata = {'render.modes': ['human', 'console', 'rgb_array']}
 
-    def __init__(self, windows_name, windows_scale=1.0, player_id=1, show=True, down_scale=2.0, gray=True):
+    def __init__(self,
+                 windows_name='Little Fighter 2',
+                 windows_scale=1.25,
+                 player_id=1,
+                 show=True,
+                 down_scale=2,
+                 max_len=4):
         """
         Initialize some parameter.
         :param windows_name: windows name that we want to crop image from
-        :param windows_scale: Windows scaling param.( Can be seen in the setting Display area.
+        :param windows_scale: Windows scaling param.(Can be seen in the setting Display area.
         """
         super(Lf2Env, self).__init__()
 
@@ -54,8 +60,10 @@ class Lf2Env(gym.Env):
 
         self.img_h = 0
         self.img_w = 0
+        self.max_len = max_len
         self.down_scale = down_scale
-        self.gray = gray
+
+        self.frames = deque([], maxlen=self.max_len)
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
         self.player_thread = threading.Thread(target=self.update_players, daemon=True)
@@ -64,33 +72,39 @@ class Lf2Env(gym.Env):
         self.player_thread.start()
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
-        # self.observation_space = spaces.Dict({
-        #     'Players': spaces.Dict(self.players),
-        #     'Game_Screen': spaces.MultiDiscrete([self.img_h * self.img_w])
-        # })
+        while True:
+            if self.img_h != 0:
+
+                # get player's attributes into dictionary
+                my_player_observe = {
+                    key: value for key, value in self.my_player.__dict__.items() if
+                    not key.startswith('__') and not callable(key)
+                }
+
+                self.observation_space = spaces.Dict({
+                    'Players': spaces.Dict(my_player_observe),
+                    'Game_Screen': spaces.Box(low=0, high=255,
+                                              shape=(self.img_h, self.img_w, self.max_len))
+                })
+                break
 
         print('Lf2 Environment initialized.')
 
     def get_state(self, player_id=None):
         # return the current state of the game
 
-        _downscaled_game_img = cv2.resize(self.gaming_screen, (self.img_w / self.down_scale,
-                                                               self.img_h / self.down_scale))
-
-        if self.gray and len(np.shape(_downscaled_game_img)) >= 3:
-            _downscaled_game_img = cv2.cvtColor(_downscaled_game_img, cv2.COLOR_BGR2GRAY)
-
         if player_id:
             if not isinstance(player_id, int):
                 raise TypeError('id must be integer.')
-            return _downscaled_game_img, self.players[player_id]
+            return self.frames, self.players[player_id]
         else:
-            return _downscaled_game_img, self.players
+            return self.frames, self.players
 
     def update_game_img(self):
         """
         Update the current gaming scene
         """
+        last_frame = np.array([0])
         while not self.kill_thread:
             tup = win32gui.GetWindowPlacement(self.game_hwnd)
 
@@ -114,14 +128,31 @@ class Lf2Env(gym.Env):
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
 
-            self.img_h, self.img_w = np.shape(screen_shot)[:2]
-            info_scale = int(self.img_h * 0.23175)
-            gaming_info_img = screen_shot[:info_scale]
+            if np.array_equal(last_frame, screen_shot):
+                # refresh until new frame exists.
+                continue
+
+            last_frame = screen_shot.copy()
+            img_h, img_w = np.shape(screen_shot)[:2]
+            info_scale = int(img_h * 0.23175)
+            # gaming_info_img = screen_shot[:info_scale]
             self.gaming_screen = screen_shot[info_scale:]
-            # time.sleep(0.01)
+
+            if not self.img_h:
+                shape = np.array(np.shape(self.gaming_screen)[:2]) / self.down_scale
+                self.img_h = int(shape[0])
+                self.img_w = int(shape[1])
+                print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
+
+            frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            with threading.Lock:
+                self.frames.append(frame)
 
             if self.show:
-                cv2.imshow('lf2_env', self.gaming_screen)
+                cv2.imshow('resize', frame)
+                cv2.imshow('lf2_gym', self.gaming_screen)
                 cv2.waitKey(1)
 
     def update_players(self):
@@ -155,6 +186,7 @@ class Lf2Env(gym.Env):
 
         self.game_over = False
         self.restart = True
+        time.sleep(4)
         print('Env reset.')
 
     @staticmethod
@@ -194,26 +226,30 @@ class Lf2Env(gym.Env):
         if mode == 'console':
             reward = self.get_reward()
             print('My player Hp: {}. Reward: {}'.format(my_player.Hp, reward))
-        if self.gaming_screen is not None:
+        elif self.gaming_screen is not None:
             cv2.imshow('lf2_render', self.gaming_screen)
             cv2.waitKey(1)
+        elif mode == 'rgb_array':
+            return self.gaming_screen
+        else:
+            super(Lf2Env, self).render(mode=mode)
 
     def get_reward(self):
         """
         Calculate the corresponding rewards of the current state.
         :return: reward
         """
-        enemy_hp = 0
-        team_hp = 0
+        enemy_hp = []
+        team_hp = []
 
         for i in self.players:
             if self.players[i].Team == self.my_player.Team:
-                team_hp += self.players[i].Hp
+                team_hp.append(self.players[i].Hp)
             else:
-                enemy_hp += self.players[i].Hp
+                enemy_hp.append(self.players[i].Hp)
 
         # Most simple reward?
-        return team_hp - enemy_hp
+        return (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
 
     def get_action_space(self):
         """
@@ -244,10 +280,11 @@ if __name__ == '__main__':
         my_player_1.update_status()
         com_player.update_status()
 
+
         # print(my_player.Hp)
         # print(my_player_1.Hp)
         # print(com_player.Hp)
-        time.sleep(5)
+        time.sleep(1)
 
         if time.time() - now >= 12000:
             break
