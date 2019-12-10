@@ -16,9 +16,11 @@ def main():
     now = time.time()
 
     while not done:
-        obs, reward, done, info = lf2_env.step(lf2_env.action_space.sample())
+        aobs, reward, done, info = lf2_env.step(lf2_env.action_space.sample())
 
-        time.sleep(1)
+        time.sleep(0.01)
+
+        print(ob)
 
         if lf2_env.game_over:
             lf2_env.reset()

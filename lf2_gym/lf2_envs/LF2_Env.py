@@ -75,14 +75,9 @@ class Lf2Env(gym.Env):
         while True:
             if self.img_h != 0:
 
-                # get player's attributes into dictionary
-                my_player_observe = {
-                    key: value for key, value in self.my_player.__dict__.items() if
-                    not key.startswith('__') and not callable(key)
-                }
-
                 self.observation_space = spaces.Dict({
-                    'Players': spaces.Dict(my_player_observe),
+                    'Hp': spaces.Box(low=0, high=self.my_player.Hp_Max, shape=(1, 1)),
+                    'Mp': spaces.Box(low=0, high=self.my_player.Mp, shape=(1, 1)),
                     'Game_Screen': spaces.Box(low=0, high=255,
                                               shape=(self.img_h, self.img_w, self.max_len))
                 })
