@@ -147,8 +147,7 @@ class Lf2Env(gym.Env):
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-            with threading.Lock:
-                self.frames.append(frame)
+            self.frames.append(frame)
 
             if self.show:
                 cv2.imshow('resize', frame)

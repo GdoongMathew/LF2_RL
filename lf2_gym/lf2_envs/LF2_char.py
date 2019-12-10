@@ -1,3 +1,4 @@
+# http://www.cheatbook.de/files/littlef2.htm
 
 
 class Lf2Char:
