@@ -16,7 +16,6 @@ python setup.py install
 ## Running
 ```python
 import gym
-import lf2_gym
 import time
 
 def main():
@@ -35,9 +34,10 @@ def main():
     
     lf2_env.close()
 
-
 if __name__ == '__main__':
     main()
-
-
 ```
+
+## Notice
+* Run the game, setup your gamemode to "VS Mode" and select your character before running the script.
+* Please ALWAYS put lf2 windows on top, otherwise you may result in random words typed in your focused app.(May be fixed in future updates.) 
