@@ -279,6 +279,10 @@ class Lf2Env(gym.Env):
         """
         return self.my_player.get_action_list()
 
+    def close(self):
+        cv2.destroyAllWindows()
+        self.kill_thread = True
+
 
 if __name__ == '__main__':
 
