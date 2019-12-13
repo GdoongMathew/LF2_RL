@@ -137,6 +137,7 @@ class Player:
         self.Hp_Max = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Hp_Max))
         self.Hp_Lost = 0
         self.Mp = 0
+        self.Mp_Max = 500  # not so sure about this number.
         self.Mp_Usage = 0
 
         self.Picking = 0
@@ -227,7 +228,7 @@ class Player:
         :return: list of available actions.
         """
         if len(self.name):
-            lf2_char = globals()[self.name]()
+            lf2_char = globals()[self.name](player_id=self.idx)
             return lf2_char.action_space()
         return None
 

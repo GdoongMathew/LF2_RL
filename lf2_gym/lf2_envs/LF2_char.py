@@ -1,15 +1,43 @@
 # http://www.cheatbook.de/files/littlef2.htm
 
+vk = {
+    0x31: "1", 0x32: "2", 0x33: "3", 0x34: "4", 0x35: "5",
+    0x36: "6", 0x37: "7", 0x38: "8", 0x39: "9", 0x30: "0",
+    0x41: "A", 0x42: "B", 0x43: "C", 0x44: "D", 0x45: "E",
+    0x46: "F", 0x47: "G", 0x48: "H", 0x49: "I", 0x4A: "J",
+    0x4B: "K", 0x4C: "L", 0x4D: "M", 0x4E: "N", 0x4F: "O",
+    0x50: "P", 0x51: "Q", 0x52: "R", 0x53: "S", 0x54: "T",
+    0x55: "U", 0x56: "V", 0x57: "W", 0x58: "X", 0x59: "Y",
+    0x5A: "Z" , 0x70: "F1", 0x71: "F2", 0x72: "F3", 0x73: "F4",
+    0x74: "F5", 0x75: "F6", 0x76: "F7", 0x77: "F8", 0x78: "F9",
+    0x79: "F10", 0x7A: "F11", 0x7B: "F12", 0x26: "UP", 0x25: "LEFT",
+    0x27: "RIGHT", 0x28: "DOWN", 0x1B: "ESC", 0x20: "SPACE",
+    0x0D: "ENTER", 0x2D: "INSERT", 0x2E: "DELETE",  0x09: "TAB",
+    0xA2: "CTRL", 0xA3: "CONTROL", 0xA0: "SHIFT", 0x14: "CAPSLOCK",
+    0xBD: "subtract", 0xDB: "[", 0xDD: "]", 0xBA: ";", 0xDE: "'",
+    0xC0: "`", 0xDC: "\\", 0xBC: ",", 0xBE: ".", 0xBF: "/"
+    }
+
 
 class Lf2Char:
-    def __init__(self, u='p', d=';', l='l', r="'", att='t', jump='y', defend='u'):
-        self.u = u              # Up
-        self.d = d              # Down
-        self.l = l              # Left
-        self.r = r              # Right
-        self.att = att          # Attact
-        self.jum = jump         # Jump
-        self.defend = defend    # Defend
+    def __init__(self, player_id=1, ctrl_file=r'D:\Programs\Little_Fighter\data\control.txt'):
+
+        if player_id > 3:
+            raise ValueError("player_id can't be larger than 3.")
+
+        with open(ctrl_file) as file:
+            for i, line in enumerate(file):
+                if i == player_id:
+                    ctrl_code = [int(x) for x in line.split(' ') if x not in (' ', '\n')]
+                    break
+
+        self.u = vk[ctrl_code[1]]              # Up
+        self.d = vk[ctrl_code[2]]              # Down
+        self.l = vk[ctrl_code[3]]              # Left
+        self.r = vk[ctrl_code[4]]              # Right
+        self.att = vk[ctrl_code[5]]            # Attact
+        self.jum = vk[ctrl_code[6]]            # Jump
+        self.defend = vk[ctrl_code[7]]         # Defend
 
     def action_space(self):
         """

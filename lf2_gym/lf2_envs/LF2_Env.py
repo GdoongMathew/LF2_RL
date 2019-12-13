@@ -29,12 +29,19 @@ class Lf2Env(gym.Env):
                  windows_scale=1.25,
                  player_id=1,
                  show=True,
-                 down_scale=2,
-                 max_len=4):
+                 downscale=2,
+                 frame_stack=4,
+                 frame_skip=1,
+                 reset_skip_sec=3):
         """
-        Initialize some parameter.
-        :param windows_name: windows name that we want to crop image from
-        :param windows_scale: Windows scaling param.(Can be seen in the setting Display area.
+        Initialize the gym environment
+        :param windows_name: name of the windows
+        :param windows_scale: windows scaling ratio, can be found in the settings.
+        :param player_id: training player id
+        :param show: Showing cropping image
+        :param downscale: downscale ratio
+        :param frame_stack: number of frames should be stacked
+        :param frame_skip: number of frames to skip before stacking.
         """
         super(Lf2Env, self).__init__()
 
@@ -60,10 +67,12 @@ class Lf2Env(gym.Env):
 
         self.img_h = 0
         self.img_w = 0
-        self.max_len = max_len
-        self.down_scale = down_scale
+        self.frame_stack = frame_stack
+        self.frame_skip = frame_skip
+        self.downscale = downscale
 
-        self.frames = deque([], maxlen=self.max_len)
+        self.frames = deque([], maxlen=self.frame_stack)
+        self.reset_skip_sec = reset_skip_sec
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
         self.player_thread = threading.Thread(target=self.update_players, daemon=True)
@@ -75,11 +84,14 @@ class Lf2Env(gym.Env):
         while True:
             if self.img_h != 0:
 
+                inf = np.array([np.inf] * 3)
+
                 self.observation_space = spaces.Dict({
-                    'Hp': spaces.Box(low=0, high=self.my_player.Hp_Max, shape=(1, 1)),
-                    'Mp': spaces.Box(low=0, high=self.my_player.Mp, shape=(1, 1)),
+                    'Positions': spaces.Box(low=-inf, high=inf, dtype=np.int32),
+                    'Hp': spaces.Discrete(self.my_player.Hp_Max),
+                    'Mp': spaces.Discrete(self.my_player.Mp_Max),
                     'Game_Screen': spaces.Box(low=0, high=255,
-                                              shape=(self.img_h, self.img_w, self.max_len))
+                                              shape=(self.img_h, self.img_w, self.frame_stack))
                 })
                 break
 
@@ -91,14 +103,22 @@ class Lf2Env(gym.Env):
         if player_id:
             if not isinstance(player_id, int):
                 raise TypeError('id must be integer.')
-            return self.frames, self.players[player_id]
         else:
-            return self.frames, self.players
+            player_id = self.my_player_id
+
+        ob = dict(Game_Screen=self.frames,
+                  Positions=np.array([self.players[player_id].x_pos,
+                                      self.players[player_id].y_pos,
+                                      self.players[player_id].z_pos]),
+                  Hp=self.players[player_id].Hp,
+                  Mp=self.players[player_id].Mp)
+        return ob
 
     def update_game_img(self):
         """
         Update the current gaming scene
         """
+        skip_i = 0
         last_frame = np.array([0])
         while not self.kill_thread:
             tup = win32gui.GetWindowPlacement(self.game_hwnd)
@@ -134,7 +154,7 @@ class Lf2Env(gym.Env):
             self.gaming_screen = screen_shot[info_scale:]
 
             if not self.img_h:
-                shape = np.array(np.shape(self.gaming_screen)[:2]) / self.down_scale
+                shape = np.array(np.shape(self.gaming_screen)[:2]) / self.downscale
                 self.img_h = int(shape[0])
                 self.img_w = int(shape[1])
                 print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
@@ -142,8 +162,12 @@ class Lf2Env(gym.Env):
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-            self.frames.append(frame)
-
+            # skip this frame
+            if skip_i >= self.frame_skip:
+                self.frames.append(frame)
+                skip_i = 0
+            else:
+                skip_i += 1
             if self.show:
                 cv2.imshow('resize', frame)
                 cv2.imshow('lf2_gym', self.gaming_screen)
@@ -180,8 +204,9 @@ class Lf2Env(gym.Env):
 
         self.game_over = False
         self.restart = True
-        time.sleep(4)
+        time.sleep(self.reset_skip_sec)
         print('Env reset.')
+        return self.get_state()
 
     @staticmethod
     def press_key(keys):
@@ -237,10 +262,12 @@ class Lf2Env(gym.Env):
         team_hp = []
 
         for i in self.players:
+
+            hp_norm = self.players[i].Hp / self.players[i].Hp_Max
             if self.players[i].Team == self.my_player.Team:
-                team_hp.append(self.players[i].Hp)
+                team_hp.append(hp_norm)
             else:
-                enemy_hp.append(self.players[i].Hp)
+                enemy_hp.append(hp_norm)
 
         # Most simple reward?
         return (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
