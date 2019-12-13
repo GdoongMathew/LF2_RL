@@ -6,7 +6,7 @@ A testing little fighter gym simulator for reinforcement learning studying.
 ```
 pip install gym
 ```
-2. Download and install [LF2_RL](https://github.com/GdoongMathew/LF2_RL.git)
+2. Download and install [LF2_RL](https://github.com/GdoongMathew/LF2_RL)
 ```
 git clone https://github.com/GdoongMathew/LF2_RL.git
 cd LF2_RL
