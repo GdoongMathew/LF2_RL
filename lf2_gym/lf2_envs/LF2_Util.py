@@ -240,6 +240,5 @@ class Player:
         act_func = getattr(self.lf2_char, action_str)
         sig = str(signature(act_func))
         if 'direction' in sig:
-            print(self.Facing)
             return functools.partial(act_func, self.Facing)()
         return getattr(self.lf2_char, action_str)()
