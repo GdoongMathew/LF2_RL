@@ -28,7 +28,7 @@ class Lf2Env(gym.Env):
                  windows_name='Little Fighter 2',
                  windows_scale=1.25,
                  player_id=1,
-                 show=True,
+                 com_player_id=0,
                  downscale=2,
                  frame_stack=4,
                  frame_skip=1,
@@ -47,7 +47,6 @@ class Lf2Env(gym.Env):
 
         self.window_name = windows_name
         self.window_scale = windows_scale
-        self.show = show
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
         self.kill_thread = False
         self.sct = mss()
@@ -55,8 +54,11 @@ class Lf2Env(gym.Env):
         self.players = {0: None, 1: None, 2: None, 3: None,
                         4: None, 5: None, 6: None, 7: None}
 
+        if isinstance(com_player_id, int):
+            com_player_id = [com_player_id]
+
         for i, item in enumerate(self.players.items()):
-            self.players[i] = Player(self.game_hwnd, i)
+            self.players[i] = Player(self.game_hwnd, i, com=i in com_player_id)
 
         self.my_player_id = player_id
         self.my_player = self.players[player_id]
@@ -67,11 +69,10 @@ class Lf2Env(gym.Env):
 
         self.img_h = 0
         self.img_w = 0
-        self.frame_stack = frame_stack
         self.frame_skip = frame_skip
         self.downscale = downscale
 
-        self.frames = deque([], maxlen=self.frame_stack)
+        self.frames = deque([], maxlen=frame_stack)
         self.reset_skip_sec = reset_skip_sec
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
@@ -86,13 +87,17 @@ class Lf2Env(gym.Env):
 
                 inf = np.array([np.inf] * 3)
 
-                self.observation_space = spaces.Dict({
-                    'Positions': spaces.Box(low=-inf, high=inf, dtype=np.int32),
-                    'Hp': spaces.Discrete(self.my_player.Hp_Max),
-                    'Mp': spaces.Discrete(self.my_player.Mp_Max),
-                    'Game_Screen': spaces.Box(low=0, high=255,
-                                              shape=(self.img_h, self.img_w, self.frame_stack))
-                })
+                # self.observation_space = spaces.Dict({
+                #     'Positions': spaces.Box(low=-inf, high=inf, dtype=np.int32),
+                #     'Hp': spaces.Discrete(self.my_player.Hp_Max),
+                #     'Mp': spaces.Discrete(self.my_player.Mp_Max),
+                #     'Game_Screen': spaces.Box(low=0, high=255,
+                #                               shape=(self.img_h, self.img_w, self.frame_stack))
+                # })
+
+                self.observation_space = spaces.Box(low=0, high=255,
+                                                    shape=(self.img_h, self.img_w, frame_stack))
+
                 break
 
         print('Lf2 Environment initialized.')
@@ -106,12 +111,13 @@ class Lf2Env(gym.Env):
         else:
             player_id = self.my_player_id
 
-        ob = dict(Game_Screen=self.frames,
-                  Positions=np.array([self.players[player_id].x_pos,
-                                      self.players[player_id].y_pos,
-                                      self.players[player_id].z_pos]),
-                  Hp=self.players[player_id].Hp,
-                  Mp=self.players[player_id].Mp)
+        ob = np.stack(self.frames, axis=2)
+        # ob = dict(Game_Screen=np.stack(self.frames, axis=2),
+        #           Positions=np.array([self.players[player_id].x_pos,
+        #                               self.players[player_id].y_pos,
+        #                               self.players[player_id].z_pos]),
+        #           Hp=self.players[player_id].Hp,
+        #           Mp=self.players[player_id].Mp)
         return ob
 
     def update_game_img(self):
@@ -158,9 +164,8 @@ class Lf2Env(gym.Env):
                 self.img_h = int(shape[0])
                 self.img_w = int(shape[1])
                 print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
-
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
             # skip this frame
             if skip_i >= self.frame_skip:
@@ -168,10 +173,6 @@ class Lf2Env(gym.Env):
                 skip_i = 0
             else:
                 skip_i += 1
-            if self.show:
-                cv2.imshow('resize', frame)
-                cv2.imshow('lf2_gym', self.gaming_screen)
-                cv2.waitKey(1)
 
     def update_players(self):
         """
@@ -186,15 +187,17 @@ class Lf2Env(gym.Env):
                 if player_i.is_active and player_i.is_alive:
                     team.append(player_i.Team)
             self.restart = False
-            if len(set(team)) == 1:
-                self.game_over = True
+            self.game_over = True if len(set(team)) == 1 else False
 
-    def reset(self, default_ok='a'):
+    def reset(self, default_ok=None):
         """
         Restart the game
         Currently still need the game to be on the active window.
         :param default_ok: default ok key
         """
+
+        if default_ok is None:
+            default_ok = self.my_player.perform_action('attact')
         self.press_key(['f4', default_ok])
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
@@ -202,8 +205,8 @@ class Lf2Env(gym.Env):
         # PostMessage(chile_hwnd, win32con.WM_KEYUP, win32con.VK_F4, 0)
         # PostMessage(chile_hwnd, win32con.WM_CHAR, default_ok, 0)
 
-        self.game_over = False
         self.restart = True
+        self.game_over = False
         time.sleep(self.reset_skip_sec)
         print('Env reset.')
         return self.get_state()
@@ -229,14 +232,12 @@ class Lf2Env(gym.Env):
         :return: observation, reward, done, info
         """
         act_name = self.get_action_space()[action_id]
-        print(act_name)
         self.press_key(self.my_player.perform_action(act_name))
-
         ob = self.get_state()
         reward = self.get_reward()
 
         # currently nothing will return in info
-        info = ()
+        info = self.get_info()
 
         return ob, reward, self.game_over, info
 
@@ -245,9 +246,10 @@ class Lf2Env(gym.Env):
         if mode == 'console':
             reward = self.get_reward()
             print('My player Hp: {}. Reward: {}'.format(my_player.Hp, reward))
-        elif self.gaming_screen is not None:
-            cv2.imshow('lf2_render', self.gaming_screen)
-            cv2.waitKey(1)
+        elif mode == 'human':
+            if self.gaming_screen is not None:
+                cv2.imshow('lf2_render', self.gaming_screen)
+                cv2.waitKey(1)
         elif mode == 'rgb_array':
             return self.gaming_screen
         else:
@@ -278,6 +280,16 @@ class Lf2Env(gym.Env):
         :return: a list of actions
         """
         return self.my_player.get_action_list()
+
+    def get_info(self):
+        """
+        get additional information.
+        :return:
+        """
+        info = dict()
+        info['GameOver'] = self.game_over
+        # info['episode'] =
+        return info
 
     def close(self):
         cv2.destroyAllWindows()
