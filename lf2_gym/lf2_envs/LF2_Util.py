@@ -145,7 +145,11 @@ class Player:
         self.Owner = 0
         self.Enemy = 0
         self.Team = 0
-        self.is_active = False
+
+        self.act_add = Lf2AddressTable.CPlayerInGame[self.idx] if self.is_computer \
+            else Lf2AddressTable.PlayerInGame[self.idx]
+
+        self.is_active = bool.from_bytes(self.game_reading.read_bytes(self.act_add, 1), byteorder)
         self.is_alive = False
 
         self.x_pos = None
@@ -196,10 +200,7 @@ class Player:
         self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))
 
-        act_add = Lf2AddressTable.CPlayerInGame[self.idx] if self.is_computer \
-            else Lf2AddressTable.PlayerInGame[self.idx]
-
-        self.is_active = bool.from_bytes(self.game_reading.read_bytes(act_add, 1), byteorder)
+        self.is_active = bool.from_bytes(self.game_reading.read_bytes(self.act_add, 1), byteorder)
         self.is_alive = self.Hp > 0 if self.is_active else False
 
     def get_player_char(self):

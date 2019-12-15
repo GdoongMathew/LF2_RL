@@ -6,6 +6,7 @@ from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
 from collections import deque
 import win32gui
 import win32con
+import win32ui
 import pyautogui
 import time
 import cv2
@@ -13,6 +14,7 @@ import threading
 
 import gym
 from gym import spaces
+
 
 pyautogui.FAILSAFE = False
 
@@ -28,11 +30,10 @@ class Lf2Env(gym.Env):
                  windows_name='Little Fighter 2',
                  windows_scale=1.25,
                  player_id=1,
-                 com_player_id=0,
                  downscale=2,
                  frame_stack=4,
                  frame_skip=1,
-                 reset_skip_sec=3):
+                 reset_skip_sec=2):
         """
         Initialize the gym environment
         :param windows_name: name of the windows
@@ -48,18 +49,16 @@ class Lf2Env(gym.Env):
         self.window_name = windows_name
         self.window_scale = windows_scale
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
+        self.PyCWnd1 = win32ui.FindWindow(None, windows_name)
+        self.PyCWnd1.SetForegroundWindow()
+        self.PyCWnd1.SetFocus()
         self.kill_thread = False
         self.sct = mss()
 
         self.players = {0: None, 1: None, 2: None, 3: None,
                         4: None, 5: None, 6: None, 7: None}
 
-        if isinstance(com_player_id, int):
-            com_player_id = [com_player_id]
-
-        for i, item in enumerate(self.players.items()):
-            self.players[i] = Player(self.game_hwnd, i, com=i in com_player_id)
-
+        self.find_players()
         self.my_player_id = player_id
         self.my_player = self.players[player_id]
 
@@ -75,15 +74,12 @@ class Lf2Env(gym.Env):
         self.frames = deque([], maxlen=frame_stack)
         self.reset_skip_sec = reset_skip_sec
 
-        self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
-        self.player_thread = threading.Thread(target=self.update_players, daemon=True)
-
-        self.recording_thread.start()
-        self.player_thread.start()
+        self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True).start()
+        self.player_thread = threading.Thread(target=self.update_players, daemon=True).start()
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
         while True:
-            if self.img_h != 0:
+            if len(self.frames) != 0:
 
                 inf = np.array([np.inf] * 3)
 
@@ -101,6 +97,19 @@ class Lf2Env(gym.Env):
                 break
 
         print('Lf2 Environment initialized.')
+
+    def find_players(self):
+        for i, item in enumerate(self.players.items()):
+            p_c = Player(self.game_hwnd, i, com=True)
+            p_h = Player(self.game_hwnd, i)
+            if p_c.is_active:
+                del p_h
+                self.players[i] = p_c
+            elif p_h.is_active:
+                del p_c
+                self.players[i] = p_h
+            else:
+                self.players[i] = None
 
     def get_state(self, player_id=None):
         # return the current state of the game
@@ -152,8 +161,6 @@ class Lf2Env(gym.Env):
             if np.array_equal(last_frame, screen_shot):
                 # refresh until new frame exists.
                 continue
-
-            last_frame = screen_shot.copy()
             img_h, img_w = np.shape(screen_shot)[:2]
             info_scale = int(img_h * 0.23175)
             # gaming_info_img = screen_shot[:info_scale]
@@ -173,6 +180,7 @@ class Lf2Env(gym.Env):
                 skip_i = 0
             else:
                 skip_i += 1
+            last_frame = screen_shot.copy()
 
     def update_players(self):
         """
@@ -183,6 +191,8 @@ class Lf2Env(gym.Env):
             team = []
             for i in self.players:
                 player_i = self.players[i]
+                if player_i is None:
+                    continue
                 player_i.update_status(reset=self.restart)
                 if player_i.is_active and player_i.is_alive:
                     team.append(player_i.Team)
@@ -211,8 +221,7 @@ class Lf2Env(gym.Env):
         print('Env reset.')
         return self.get_state()
 
-    @staticmethod
-    def press_key(keys):
+    def press_key(self, keys):
         last_key = ''
         if keys is not None:
             for key in keys:
@@ -264,7 +273,8 @@ class Lf2Env(gym.Env):
         team_hp = []
 
         for i in self.players:
-
+            if self.players[i] is None:
+                continue
             hp_norm = self.players[i].Hp / self.players[i].Hp_Max
             if self.players[i].Team == self.my_player.Team:
                 team_hp.append(hp_norm)

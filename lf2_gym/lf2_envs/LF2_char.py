@@ -19,7 +19,7 @@ vk = {
     }
 
 
-class Lf2Char:
+class Template:
     def __init__(self, player_id=1, ctrl_file=r'D:\Programs\Little_Fighter\data\control.txt'):
 
         if player_id > 3:
@@ -80,7 +80,7 @@ class Lf2Char:
         return getattr(self, direction)() + getattr(self, direction)()
 
 
-class John(Lf2Char):
+class John(Template):
     def sp_attact1(self, direction='right'):
         # Energy Blast
         return self.deffend() + getattr(self, direction)() + self.attact()
@@ -102,7 +102,7 @@ class John(Lf2Char):
         return self.deffend() + self.down() + self.jump()
 
 
-class Deep(Lf2Char):
+class Deep(Template):
     def sp_attact1(self, direction='right', num=1):
         # Energy Blast
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -124,7 +124,7 @@ class Deep(Lf2Char):
         return self.deffend() + getattr(self, direction)() + self.jump()
 
 
-class Henry(Lf2Char):
+class Henry(Template):
     def sp_attact1(self, direction='right'):
         # Dragon Palm
         return self.deffend() + getattr(self, direction)() + self.attact()
@@ -142,7 +142,7 @@ class Henry(Lf2Char):
         return self.deffend() + self.up() + self.jump()
 
 
-class Rudolf(Lf2Char):
+class Rudolf(Template):
     def sp_attact1(self, direction='right'):
         # Leap Attact
         return self.deffend() + getattr(self, direction)() + self.jump()
@@ -160,7 +160,7 @@ class Rudolf(Lf2Char):
         return self.deffend() + self.down() + self.jump()
 
 
-class Louis(Lf2Char):
+class Louis(Template):
     def sp_attact1(self, direction='right'):
         # Thunder Punch
         return self.run(direction=direction) + self.attact()
@@ -182,7 +182,7 @@ class Louis(Lf2Char):
         return self.deffend() + getattr(self, direction)() + self.attact()
 
 
-class Firen(Lf2Char):
+class Firen(Template):
     def sp_attact1(self, direction='right', num=1):
         # Fire Ball
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -200,7 +200,7 @@ class Firen(Lf2Char):
         return self.down() + self.up() + self.jump()
 
 
-class Freeze(Lf2Char):
+class Freeze(Template):
     def sp_attact1(self, direction='right', num=1):
         # Ice Blast
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -218,7 +218,7 @@ class Freeze(Lf2Char):
         return self.deffend() + self.up() + self.jump()
 
 
-class Dennis(Lf2Char):
+class Dennis(Template):
     def sp_attact1(self, direction='right', num=1):
         # Energy Blast
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -236,7 +236,7 @@ class Dennis(Lf2Char):
         return self.deffend() + self.up() + self.attact()
 
 
-class Woody(Lf2Char):
+class Woody(Template):
     def sp_attact1(self):
         # Flip Kick
         return self.deffend() + self.up() + self.attact()
@@ -262,7 +262,7 @@ class Woody(Lf2Char):
         return self.deffend() + getattr(self, direction)() + self.jump()
 
 
-class Davis(Lf2Char):
+class Davis(Template):
     def sp_attact1(self):
         # Leap Attact
         return self.deffend() + self.up() + self.jump() + self.attact()
@@ -280,7 +280,7 @@ class Davis(Lf2Char):
         return self.deffend() + self.up() + self.attact()
 
 
-class Mark(Lf2Char):
+class Mark(Template):
     def sp_attact1(self, direction='right', num=1):
         # Crash Punch
         return self.deffend() + getattr(self, direction)() + num * self.attact()
@@ -290,7 +290,7 @@ class Mark(Lf2Char):
         return self.deffend() + getattr(self, direction)() + self.jump()
 
 
-class Jan(Lf2Char):
+class Jan(Template):
     def sp_attact1(self):
         # Devil's Judgement
         return self.deffend() + self.up() + self.attact()
@@ -300,7 +300,7 @@ class Jan(Lf2Char):
         return self.deffend() + self.up() + self.jump()
 
 
-class Justin(Lf2Char):
+class Justin(Template):
     def sp_attact1(self, num=1):
         # Wolf Punch
         return self.deffend() + self.down() + self.attact() * 1
@@ -310,7 +310,7 @@ class Justin(Lf2Char):
         return self.deffend() + getattr(self, direction)() + self.attact()
 
 
-class Bat(Lf2Char):
+class Bat(Template):
     def sp_attact1(self, direction='right'):
         # Speed Punch
         return self.deffend() + getattr(self, direction)() + self.jump()
@@ -324,7 +324,7 @@ class Bat(Lf2Char):
         return self.deffend() + self.up() + self.jump()
 
 
-class Julian(Lf2Char):
+class Julian(Template):
     def sp_attact1(self, direction='right'):
         # Soul Punch
         return getattr(self, direction)() + getattr(self, direction)() + self.attact()
