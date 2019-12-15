@@ -102,6 +102,86 @@ class John(Lf2Char):
         return self.deffend() + self.down() + self.jump()
 
 
+class Deep(Lf2Char):
+    def sp_attact1(self, direction='right', num=1):
+        # Energy Blast
+        return self.deffend() + getattr(self, direction)() + num * self.attact()
+
+    def sp_attact2(self):
+        # Strike
+        return self.deffend() + self.down() + self.attact()
+
+    def sp_attact3(self):
+        # Leap Attact
+        return self.deffend() + self.up() + self.jump() + self.attact()
+
+    def sp_attact4(self):
+        # Leap Attact2
+        return self.sp_attact2() + self.jump() + self.attact()
+
+    def sp_attact5(self, direction='right'):
+        # Dash Strafe
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+
+class Henry(Lf2Char):
+    def sp_attact1(self, direction='right'):
+        # Dragon Palm
+        return self.deffend() + getattr(self, direction)() + self.attact()
+
+    def sp_attact2(self, num=1):
+        # Multiple Shot
+        return self.deffend() + self.jump() + num * self.attact()
+
+    def sp_attact3(self, direction='right'):
+        # Critical Show
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact4(self):
+        # Sonata of the Death
+        return self.deffend() + self.up() + self.jump()
+
+
+class Rudolf(Lf2Char):
+    def sp_attact1(self, direction='right'):
+        # Leap Attact
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact2(self, direction='right', num=1):
+        # Multiple Ninja Star
+        return self.deffend() + getattr(self, direction)() + num * self.attact()
+
+    def sp_attact3(self):
+        # Hide
+        return self.deffend() + self.up() + self.jump()
+
+    def sp_attact4(self):
+        # Double
+        return self.deffend() + self.down() + self.jump()
+
+
+class Louis(Lf2Char):
+    def sp_attact1(self, direction='right'):
+        # Thunder Punch
+        return self.run(direction=direction) + self.attact()
+
+    def sp_attact2(self, direction='right'):
+        # Jump Thunder Punch
+        return self.run(direction=direction) + self.jump() + self.attact()
+
+    def sp_attact3(self, direction='right'):
+        # Thunder Kick
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact4(self):
+        # Whirlwind Throw
+        return self.deffend() + self.up() + self.jump()
+
+    def sp_attact5(self, direction='right'):
+        # Phoenix Palm
+        return self.deffend() + getattr(self, direction)() + self.attact()
+
+
 class Firen(Lf2Char):
     def sp_attact1(self, direction='right', num=1):
         # Fire Ball
@@ -136,6 +216,78 @@ class Freeze(Lf2Char):
     def sp_attact4(self):
         # Whirlwind
         return self.deffend() + self.up() + self.jump()
+
+
+class Dennis(Lf2Char):
+    def sp_attact1(self, direction='right', num=1):
+        # Energy Blast
+        return self.deffend() + getattr(self, direction)() + num * self.attact()
+
+    def sp_attact2(self):
+        # Shrafe
+        return self.deffend() + self.down() + self.attact()
+
+    def sp_attact3(self, direction='right'):
+        # Whirlwind Kick
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact4(self):
+        # Chasing Blast
+        return self.deffend() + self.up() + self.attact()
+
+
+class Woody(Lf2Char):
+    def sp_attact1(self):
+        # Flip Kick
+        return self.deffend() + self.up() + self.attact()
+
+    def sp_attact2(self):
+        # Turning Kick
+        return self.deffend() + self.down() + self.attact()
+
+    def sp_attact3(self):
+        # Teleport to enemy
+        return self.deffend() + self.up() + self.jump()
+
+    def sp_attact4(self):
+        # Teleport to friend
+        return self.deffend() + self.down() + self.jump()
+
+    def sp_attaact5(self, direction='right'):
+        # Energy Blast
+        return self.deffend() + getattr(self, direction)() + self.attact()
+
+    def sp_attact6(self, direction='right'):
+        # Tiger Dash
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+
+class Davis(Lf2Char):
+    def sp_attact1(self):
+        # Leap Attact
+        return self.deffend() + self.up() + self.jump() + self.attact()
+
+    def sp_attact2(self, direction='right', num=1):
+        # Energy Blast
+        return self.deffend() + getattr(self, direction)() + num * self.attact()
+
+    def sp_attact3(self):
+        # Shrafe
+        return self.deffend() + self.down() + self.attact()
+
+    def sp_attact4(self):
+        # Dragon Punch
+        return self.deffend() + self.up() + self.attact()
+
+
+class Mark(Lf2Char):
+    def sp_attact1(self, direction='right', num=1):
+        # Crash Punch
+        return self.deffend() + getattr(self, direction)() + num * self.attact()
+
+    def sp_attact2(self, direction='right'):
+        # Body Attact
+        return self.deffend() + getattr(self, direction)() + self.jump()
 
 
 class Jan(Lf2Char):

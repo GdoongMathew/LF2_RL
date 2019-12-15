@@ -304,8 +304,8 @@ if __name__ == '__main__':
     my_player_1 = Player(hwnd, 1)
     com_player = Player(hwnd, 2, com=True)
 
-    # print(my_player.name)
-    # print(my_player_1.name)
+    print(my_player.name)
+    print(my_player_1.name)
 
     ply1 = globals()['Julian']()
 
@@ -315,11 +315,9 @@ if __name__ == '__main__':
 
         my_player.update_status()
         my_player_1.update_status()
-        com_player.update_status()
 
-
-        # print(my_player.Hp)
-        # print(my_player_1.Hp)
+        print(my_player.Hp)
+        print(my_player_1.Hp)
         # print(com_player.Hp)
         time.sleep(1)
 

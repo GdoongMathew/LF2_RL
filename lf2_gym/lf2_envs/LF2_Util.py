@@ -7,6 +7,7 @@ from ctypes.wintypes import HANDLE
 from sys import byteorder
 from inspect import signature
 from lf2_gym.lf2_envs.LF2_char import *
+from collections import OrderedDict
 import functools
 import ctypes
 import pymem
@@ -15,14 +16,14 @@ import win32process
 PROCESS_VM_OPERATION = 0x0008
 PROCESS_VM_READ = 0x0010
 
-Char_Name = {
-    "Template": 0, "Julian":    0, "Firzen":    0, "LouisEX":   0,
-    "Bat":      0, "Justin":    0, "Knight":    0, "Jan":       0,
-    "Monk":     0, "Sorcerer":  0, "Jack":      0, "Mark":      0,
-    "Hunter":   0, "Bandit":    0, "Deep":      0, "John":      0,
-    "Henry":    0, "Rudolf":    0, "Louis":     0, "Firen":     0,
-    "Freeze":   0, "Dennis":    0, "Woody":     0, "Davis":     0
-}
+Char_Name = OrderedDict([
+    ("Template", 0), ("Julian",    0), ("Firzen",    0), ("LouisEX",   0),
+    ("Bat",      0), ("Justin",    0), ("Knight",    0), ("Jan",       0),
+    ("Monk",     0), ("Sorcerer",  0), ("Jack",      0), ("Mark",      0),
+    ("Hunter",   0), ("Bandit",    0), ("Deep",      0), ("John",      0),
+    ("Henry",    0), ("Rudolf",    0), ("Louis",     0), ("Firen",     0),
+    ("Freeze",   0), ("Dennis",    0), ("Woody",     0), ("Davis",     0)]
+)
 
 
 class Lf2AddressTable:
@@ -126,7 +127,7 @@ class Player:
                                                          else Lf2AddressTable.Computer[self.idx])
 
         self.DataFiles = []
-        self.DataAddress = self.address_shift(Lf2AddressTable.PDataPointer)
+        self.DataAddress = self.game_reading.read_int(self.address_shift(Lf2AddressTable.PDataPointer))
         self.name = self.get_player_char()
         self.lf2_char = globals()[self.name]()
 
@@ -206,7 +207,6 @@ class Player:
         Get the character of the player.
         :return: the name of the character
         """
-        # get current player character
         _data_address = self.game_reading.read_int(Lf2AddressTable.DataPointer)
         for i in range(len(Lf2AddressTable.DataFile)):
             Lf2AddressTable.DataFile[i] = self.game_reading.read_int(_data_address + i * 4)
@@ -214,13 +214,10 @@ class Player:
         for i, item in enumerate(Char_Name):
             Char_Name[item] = Lf2AddressTable.DataFile[i]
 
-        # Todo this function still need to be fixed, still can't read the correct name of a player character
-        # for name, i in Char_Name.items():
-        #     if i == self.DataAddress:
-        #         return name
-        # return ''
-
-        return 'Julian'
+        for name, i in Char_Name.items():
+            if i == self.DataAddress:
+                return name
+        return ''
 
     def get_action_list(self):
         """
