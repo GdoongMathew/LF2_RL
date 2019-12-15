@@ -350,6 +350,20 @@ class Julian(Template):
         return self.deffend() + getattr(self, direction)() + self.jump()
 
 
+class Firzen(Template):
+    def sp_attact1(self, direction='right'):
+        # Firzen Cannon
+        return self.deffend() + getattr(self, direction)() + self.jump()
+
+    def sp_attact2(self, num=1):
+        # Overwhelming Disaster
+        return self.deffend() + self.up() + num * self.attact()
+
+    def sp_attact3(self):
+        # Arctic Volcano
+        self.deffend() + self.up() + self.jump()
+
+
 if __name__ == '__main__':
     p1 = Julian()
     print(p1.action_space())
