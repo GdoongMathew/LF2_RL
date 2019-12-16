@@ -47,7 +47,6 @@ class Lf2Env(gym.Env):
         super(Lf2Env, self).__init__()
 
         self.window_name = windows_name
-        self.window_scale = windows_scale
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
         self.PyCWnd1 = win32ui.FindWindow(None, windows_name)
         self.PyCWnd1.SetForegroundWindow()
