@@ -33,13 +33,13 @@ class Lf2Env(gym.Env):
                  downscale=2,
                  frame_stack=4,
                  frame_skip=1,
-                 reset_skip_sec=2):
+                 reset_skip_sec=2,
+                 mode='mix'):
         """
         Initialize the gym environment
         :param windows_name: name of the windows
         :param windows_scale: windows scaling ratio, can be found in the settings.
         :param player_id: training player id
-        :param show: Showing cropping image
         :param downscale: downscale ratio
         :param frame_stack: number of frames should be stacked
         :param frame_skip: number of frames to skip before stacking.
@@ -58,7 +58,7 @@ class Lf2Env(gym.Env):
         self.players = {0: None, 1: None, 2: None, 3: None,
                         4: None, 5: None, 6: None, 7: None}
 
-        self.find_players()
+        num_players = self.find_players()
         self.my_player_id = player_id
         self.my_player = self.players[player_id]
 
@@ -72,61 +72,89 @@ class Lf2Env(gym.Env):
         self.downscale = downscale
 
         self.frames = deque([], maxlen=frame_stack)
+        # Immortal seconds before every rounds.
         self.reset_skip_sec = reset_skip_sec
 
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True).start()
         self.player_thread = threading.Thread(target=self.update_players, daemon=True).start()
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
+        self.mode = mode
         while True:
             if len(self.frames) != 0:
 
-                inf = np.array([np.inf] * 3)
-
-                # self.observation_space = spaces.Dict({
-                #     'Positions': spaces.Box(low=-inf, high=inf, dtype=np.int32),
-                #     'Hp': spaces.Discrete(self.my_player.Hp_Max),
-                #     'Mp': spaces.Discrete(self.my_player.Mp_Max),
-                #     'Game_Screen': spaces.Box(low=0, high=255,
-                #                               shape=(self.img_h, self.img_w, self.frame_stack))
-                # })
-
-                self.observation_space = spaces.Box(low=0, high=255,
-                                                    shape=(self.img_h, self.img_w, frame_stack))
-
+                if self.mode == 'mix':
+                    # my_mp, my_hp, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+                    low = [0, 0] + [0, 0, 0] * (num_players - 1)
+                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max] + [np.inf, np.inf, np.inf] * (num_players - 1)
+                    info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
+                    self.observation_space = spaces.Dict({
+                        'Info': info,
+                        'Game_Screen': spaces.Box(low=0, high=255,
+                                                  shape=(self.img_h, self.img_w, frame_stack))
+                    })
+                elif self.mode == 'info':
+                    low = [0, 0] + [0, 0, 0] * (num_players - 1)
+                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max] + [np.inf, np.inf, np.inf] * (num_players - 1)
+                    info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
+                    self.observation_space = info
+                elif self.mode == 'picture':
+                    self.observation_space = spaces.Box(low=0, high=255,
+                                                        shape=(self.img_h, self.img_w, frame_stack))
+                else:
+                    raise ValueError('Not Supported mode.... Exiting.')
                 break
-
         print('Lf2 Environment initialized.')
 
     def find_players(self):
+        num_player = 0
         for i, item in enumerate(self.players.items()):
             p_c = Player(self.game_hwnd, i, com=True)
             p_h = Player(self.game_hwnd, i)
             if p_c.is_active:
                 del p_h
                 self.players[i] = p_c
+                num_player += 1
             elif p_h.is_active:
                 del p_c
                 self.players[i] = p_h
+                num_player += 1
             else:
                 self.players[i] = None
 
-    def get_state(self, player_id=None):
+        return num_player
+
+    def get_state(self):
         # return the current state of the game
 
-        if player_id:
-            if not isinstance(player_id, int):
-                raise TypeError('id must be integer.')
-        else:
-            player_id = self.my_player_id
+        if self.mode == 'picture':
+            ob = np.stack(self.frames, axis=2)
+        elif self.mode == 'mix':
+            # my_mp, my_hp, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+            info = []
+            for i in self.players:
+                if self.players[i] is None or i == self.my_player_id:
+                    continue
 
-        ob = np.stack(self.frames, axis=2)
-        # ob = dict(Game_Screen=np.stack(self.frames, axis=2),
-        #           Positions=np.array([self.players[player_id].x_pos,
-        #                               self.players[player_id].y_pos,
-        #                               self.players[player_id].z_pos]),
-        #           Hp=self.players[player_id].Hp,
-        #           Mp=self.players[player_id].Mp)
+                info += [self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
+
+            info = [self.my_player.x_pos, self.my_player.y_pos, self.my_player.z_pos] + info
+
+            ob = dict(Game_Screen=np.stack(self.frames, axis=2),
+                      Info=np.array(info))
+
+        else:
+            # info mode
+            info = []
+            for i in self.players:
+                if self.players[i] is None or i == self.my_player_id:
+                    continue
+
+                info += [self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
+
+            info = [self.my_player.x_pos, self.my_player.y_pos, self.my_player.z_pos] + info
+            ob = np.array(info)
+
         return ob
 
     def update_game_img(self):
@@ -181,6 +209,7 @@ class Lf2Env(gym.Env):
             else:
                 skip_i += 1
             last_frame = screen_shot.copy()
+            time.sleep(0.01)
 
     def update_players(self):
         """
