@@ -38,6 +38,18 @@ if __name__ == '__main__':
     main()
 ```
 
+## Action Space
+Value | Action | Value | Action
+--- | --- | --- | ---
+0 | idle    | 8 | run
+1 | up      | 9 | combo attact1
+2 | down    | 10| combo attact2
+3 | left    | 11| combo attact3
+4 | right   | 12| combo attact4
+5 | A       | 13| combo attact5
+6 | J       | 14| combo attact6
+7 | D
+
 ## Notice
-* Run the game, setup your gamemode to "VS Mode" and select your character before running the script.
-* Please ALWAYS put lf2 windows on top, otherwise you may result in random words typed in your focused app.(May be fixed in future updates.) 
+*  Before running the script, setup your gamemode to "VS Mode" and select your character first.
+* Please ALWAYS put lf2 windows on top, otherwise you may result in random words typed in your focused window.(May be fixed in future updates.) 
