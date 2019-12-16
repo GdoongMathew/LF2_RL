@@ -172,14 +172,13 @@ class Lf2Env(gym.Env):
                 rect = [0, 0, w, h]
             elif tup[1] == win32con.SW_SHOWNORMAL:
                 rect = list(win32gui.GetWindowRect(self.game_hwnd))
-                print(rect)
             else:
                 continue
             h = rect[3] - rect[1]
-            pos = {'top': int(rect[1] + h * 0.266 * self.window_scale),
-                   'left': int(rect[0] + 2 * self.window_scale),
-                   'height': int(((rect[3] - rect[1]) * 2 / 3) - 2 * self.window_scale),
-                   'width': int(rect[2] - rect[0] - 4 * self.window_scale)}
+            pos = {'top': int(rect[1] + h * 0.266),
+                   'left': int(rect[0] + 2),
+                   'height': int(((rect[3] - rect[1]) * 2 / 3) - 2),
+                   'width': int(rect[2] - rect[0] - 4)}
 
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
@@ -194,6 +193,7 @@ class Lf2Env(gym.Env):
                 self.img_h = int(shape[0])
                 self.img_w = int(shape[1])
                 print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
+
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
