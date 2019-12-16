@@ -28,7 +28,6 @@ class Lf2Env(gym.Env):
 
     def __init__(self,
                  windows_name='Little Fighter 2',
-                 windows_scale=1.25,
                  player_id=1,
                  downscale=2,
                  frame_stack=4,
@@ -38,11 +37,12 @@ class Lf2Env(gym.Env):
         """
         Initialize the gym environment
         :param windows_name: name of the windows
-        :param windows_scale: windows scaling ratio, can be found in the settings.
         :param player_id: training player id
         :param downscale: downscale ratio
         :param frame_stack: number of frames should be stacked
         :param frame_skip: number of frames to skip before stacking.
+        :param reset_skip_sec: immortal time (sec)
+        :param mode: observation output mode.
         """
         super(Lf2Env, self).__init__()
 
@@ -173,15 +173,14 @@ class Lf2Env(gym.Env):
                 rect = [0, 0, w, h]
             elif tup[1] == win32con.SW_SHOWNORMAL:
                 rect = list(win32gui.GetWindowRect(self.game_hwnd))
+                print(rect)
             else:
                 continue
-            # cut off windows title  from the image
-            rect[1] = rect[1] + 44
-
-            pos = {'top': rect[1],
-                   'left': rect[0] + 3,
-                   'height': rect[3] - rect[1] - 50,
-                   'width': rect[2] - rect[0] - 6}
+            h = rect[3] - rect[1]
+            pos = {'top': int(rect[1] + h * 0.266 * self.window_scale),
+                   'left': int(rect[0] + 2 * self.window_scale),
+                   'height': int(((rect[3] - rect[1]) * 2 / 3) - 2 * self.window_scale),
+                   'width': int(rect[2] - rect[0] - 4 * self.window_scale)}
 
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
@@ -189,10 +188,7 @@ class Lf2Env(gym.Env):
             if np.array_equal(last_frame, screen_shot):
                 # refresh until new frame exists.
                 continue
-            img_h, img_w = np.shape(screen_shot)[:2]
-            info_scale = int(img_h * 0.23175)
-            # gaming_info_img = screen_shot[:info_scale]
-            self.gaming_screen = screen_shot[info_scale:]
+            self.gaming_screen = screen_shot
 
             if not self.img_h:
                 shape = np.array(np.shape(self.gaming_screen)[:2]) / self.downscale
