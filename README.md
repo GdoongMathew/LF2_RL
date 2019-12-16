@@ -70,5 +70,5 @@ mode| observation mode| 'mix'
 
 
 ## Notice
-*  Before running the script, setup your gamemode to "VS Mode" and select your character first.
+*  Before training/testing, setup your gamemode to "VS Mode" and select your character first.
 * Please ALWAYS put lf2 windows on top, otherwise you may result in random words typed in your focused window.(May be fixed in future updates.) 
