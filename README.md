@@ -50,6 +50,25 @@ Value | Action | Value | Action
 6 | J       | 14| combo attact6
 7 | D
 
+## Observation Space
+Mode | Ob space
+---|---
+picture| [img_h, img_w, number of stacks]
+info|[my mp, my hp, my x, my y, my z, enemy1 x, enemy1 y, enemy1 z]
+mix | dict(Game_Screen: picture, Info: info)
+
+## Parameters
+Parameter|Description|Default Value
+---|---|---
+windows_name|window's name|'Little Fighter 2'
+windows_scale|Display Scaling in windows Setting|1.25
+down_scale|screenshot downscale| 2
+frame_stack| number of frames to stack| 4
+frame_skip| number of frames to skip between each frame| 1
+reset_skip_sec|immortal time when each round begins| 2
+mode| observation mode| 'mix'
+
+
 ## Notice
 *  Before running the script, setup your gamemode to "VS Mode" and select your character first.
 * Please ALWAYS put lf2 windows on top, otherwise you may result in random words typed in your focused window.(May be fixed in future updates.) 
