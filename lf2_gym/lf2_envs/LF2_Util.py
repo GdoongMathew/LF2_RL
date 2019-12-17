@@ -160,6 +160,7 @@ class Player:
         self.time = 0
         self.total_time = 0
 
+        self.facing_bool = False
         self.Facing = 'right'
 
     def address_shift(self, shift):
@@ -195,7 +196,8 @@ class Player:
         self.z_pos = self.game_reading.read_int(self.address_shift(Lf2AddressTable.z_pos))
 
         facing_byte = self.game_reading.read_bytes(self.address_shift(Lf2AddressTable.Facing), 1)
-        self.Facing = 'left' if bool.from_bytes(facing_byte, byteorder) else 'right'
+        self.facing_bool = bool.from_bytes(facing_byte, byteorder)
+        self.Facing = 'left' if self.facing_bool else 'right'
 
         self.Enemy = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Enemy))
         self.Picking = self.game_reading.read_int(self.address_shift(Lf2AddressTable.Picking))

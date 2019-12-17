@@ -84,9 +84,10 @@ class Lf2Env(gym.Env):
             if len(self.frames) != 0:
 
                 if self.mode == 'mix':
-                    # my_mp, my_hp, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-                    low = [0, 0] + [0, 0, 0] * (num_players - 1)
-                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max] + [np.inf, np.inf, np.inf] * (num_players - 1)
+                    # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+                    low = [0, 0, 0] + [0, 0, 0] * (num_players - 1)
+                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, np.inf] * (
+                                num_players - 1)
                     info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
                     self.observation_space = spaces.Dict({
                         'Info': info,
@@ -94,8 +95,9 @@ class Lf2Env(gym.Env):
                                                   shape=(self.img_h, self.img_w, frame_stack))
                     })
                 elif self.mode == 'info':
-                    low = [0, 0] + [0, 0, 0] * (num_players - 1)
-                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max] + [np.inf, np.inf, np.inf] * (num_players - 1)
+                    low = [0, 0, 0] + [0, 0, 0] * (num_players - 1)
+                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, np.inf] * (
+                                num_players - 1)
                     info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
                     self.observation_space = info
                 elif self.mode == 'picture':
@@ -130,8 +132,8 @@ class Lf2Env(gym.Env):
         if self.mode == 'picture':
             ob = np.stack(self.frames, axis=2)
         elif self.mode == 'mix':
-            # my_mp, my_hp, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-            info = []
+            # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+            info = [self.my_player.Mp, self.my_player.Hp, int(self.my_player.facing_bool)]
             for i in self.players:
                 if self.players[i] is None or i == self.my_player_id:
                     continue
@@ -145,7 +147,7 @@ class Lf2Env(gym.Env):
 
         else:
             # info mode
-            info = []
+            info = [self.my_player.Mp, self.my_player.Hp, int(self.my_player.facing_bool)]
             for i in self.players:
                 if self.players[i] is None or i == self.my_player_id:
                     continue
