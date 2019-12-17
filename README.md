@@ -61,6 +61,7 @@ mix | dict(Game_Screen: picture, Info: info)
 Parameter|Description|Default Value
 ---|---|---
 windows_name|window's name|'Little Fighter 2'
+player_id|AI player id| 1
 down_scale|screenshot downscale| 2
 frame_stack| number of frames to stack| 4
 frame_skip| number of frames to skip between each frame| 1
