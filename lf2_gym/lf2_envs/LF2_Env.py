@@ -79,6 +79,7 @@ class Lf2Env(gym.Env):
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
         self.mode = mode
+        self.reward = 0
         while True:
             if len(self.frames) != 0:
 
@@ -242,8 +243,10 @@ class Lf2Env(gym.Env):
         self.restart = True
         self.game_over = False
         time.sleep(self.reset_skip_sec)
+        self.reward = 0
         print('Env reset.')
         return self.get_state()
+
 
     def press_key(self, keys):
         last_key = ''
@@ -305,8 +308,10 @@ class Lf2Env(gym.Env):
             else:
                 enemy_hp.append(hp_norm)
 
+        self.reward += (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
+
         # Most simple reward?
-        return (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
+        return self.reward
 
     def get_action_space(self):
         """
