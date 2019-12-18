@@ -248,7 +248,6 @@ class Lf2Env(gym.Env):
         print('Env reset.')
         return self.get_state()
 
-
     def press_key(self, keys):
         last_key = ''
         if keys is not None:
@@ -303,13 +302,15 @@ class Lf2Env(gym.Env):
         for i in self.players:
             if self.players[i] is None:
                 continue
-            hp_norm = self.players[i].Hp / self.players[i].Hp_Max
+            hp_norm = self.players[i].Hp * 10 / self.players[i].Hp_Max
             if self.players[i].Team == self.my_player.Team:
                 team_hp.append(hp_norm)
             else:
                 enemy_hp.append(hp_norm)
 
         self.reward += (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
+        mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Max
+        self.reward += mp_reward
 
         # Most simple reward?
         return self.reward

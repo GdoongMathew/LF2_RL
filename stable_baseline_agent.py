@@ -48,7 +48,7 @@ def main():
                  )
 
     print('Start learning')
-    model.learn(total_timesteps=20000000)
+    model.learn(total_timesteps=200000)
     model.save(save_root)
     #
     obs = lf2_env.reset()
