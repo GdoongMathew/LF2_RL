@@ -27,7 +27,7 @@ def make_env(env_id, **kwargs):
 def main():
 
     env_id = 'LittleFighter2-v0'
-    karg = dict(frame_stack=1, frame_skip=0, reset_skip_sec=2, mode='picture')
+    karg = dict(frame_stack=2, frame_skip=1, reset_skip_sec=2, mode='picture')
     num_cpu = 1
 
     # lf2_env = Lf2Env(**karg)
@@ -38,7 +38,7 @@ def main():
     gamma = 0.95
     # #
     lf2_env = SubprocVecEnv([make_env(env_id, **karg) for i in range(num_cpu)])
-    save_root = r'D:\Python Project\LF2_RL_Model'
+    save_root = r'LF2_RL_Model'
     model = PPO2(MlpLnLstmPolicy,
                  lf2_env,
                  verbose=1,
@@ -46,18 +46,17 @@ def main():
                  nminibatches=1,
                  tensorboard_log=os.path.join(save_root, 'tensorboard')
                  )
-
+    #
     print('Start learning')
-    model.learn(total_timesteps=200000)
+    model.learn(total_timesteps=6000000)
     model.save(save_root)
     #
+
+    # model = PPO2.load(save_root)
     obs = lf2_env.reset()
 
     done = False
     while not done:
-
-        # testing part
-        # actions = lf2_env.action_space.sample()
 
         # model prediction
         actions, _states = model.predict(obs)

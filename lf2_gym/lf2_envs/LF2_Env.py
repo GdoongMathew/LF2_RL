@@ -178,9 +178,9 @@ class Lf2Env(gym.Env):
                 continue
             h = rect[3] - rect[1]
             pos = {'top': int(rect[1] + h * 0.266),
-                   'left': int(rect[0] + 2),
+                   'left': int(rect[0] + 1),
                    'height': int(((rect[3] - rect[1]) * 2 / 3) - 2),
-                   'width': int(rect[2] - rect[0] - 4)}
+                   'width': int(rect[2] - rect[0])}
 
             screen_shot = self.sct.grab(pos)
             screen_shot = np.array(screen_shot)
@@ -192,8 +192,8 @@ class Lf2Env(gym.Env):
 
             if not self.img_h:
                 shape = np.array(np.shape(self.gaming_screen)[:2]) / self.downscale
-                self.img_h = int(shape[0])
-                self.img_w = int(shape[1])
+                self.img_h = int(shape[0])  # 500
+                self.img_w = int(shape[1])  # 996
                 print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
 
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
