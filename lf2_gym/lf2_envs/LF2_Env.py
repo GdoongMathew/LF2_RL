@@ -82,23 +82,18 @@ class Lf2Env(gym.Env):
         self.reward = 0
         while True:
             if len(self.frames) != 0:
+                # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+                low = [0, 0, 0] + [0, 0, -np.inf] * num_players
+                high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, 0] * num_players
+                info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
 
                 if self.mode == 'mix':
-                    # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-                    low = [0, 0, 0] + [0, 0, -np.inf] * (num_players - 1)
-                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, 0] * (
-                                num_players - 1)
-                    info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
                     self.observation_space = spaces.Dict({
                         'Info': info,
                         'Game_Screen': spaces.Box(low=0, high=255,
                                                   shape=(self.img_h, self.img_w, frame_stack))
                     })
                 elif self.mode == 'info':
-                    low = [0, 0, 0] + [0, 0, -np.inf] * (num_players - 1)
-                    high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, 0] * (
-                            num_players - 1)
-                    info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
                     self.observation_space = info
                 elif self.mode == 'picture':
                     self.observation_space = spaces.Box(low=0, high=255,
