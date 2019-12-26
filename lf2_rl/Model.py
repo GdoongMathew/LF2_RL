@@ -7,21 +7,21 @@ import lf2_gym
 import cv2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+# device = 'cpu'
 
 class Net(nn.Module):
     def __init__(self, action_n, state_n):
-        super(DQN, self).__init__()
+        super(Net, self).__init__()
 
         picture_n, feature_n = state_n[0], state_n[1]
 
         # input 4 x 240 x 500
         # 492, 232
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4, dilation=2).to(device)  # 32 x 59 x 124
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=5).to(device)        # 64 x 12 x 25
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=4).to(device)        # 64 x
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4, dilation=2).to(device)  # 32 x 57 x 122
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=2, stride=5).to(device)        # 64 x 12 x 25
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=5, stride=1).to(device)        # 64 x 8 x 21
 
-        self.fc1 = nn.Linear(64 * 7 * 18, 200).to(device)
+        self.fc1 = nn.Linear(64 * 8 * 21, 200).to(device)
         self.fc1.weight.data.normal_(0, 0.1)  # initialization
         self.fc2 = nn.Linear(200 + feature_n, 50).to(device)
         self.fc2.weight.data.normal_(0, 0.1)  # initialization
@@ -31,7 +31,6 @@ class Net(nn.Module):
     def forward(self, x):
         img, feature = x[0], x[1]
         # img = cv2.resize(img, (240, 500))
-
         img = Func.relu(self.conv1(img))
         img = Func.relu(self.conv2(img))
         img = Func.relu(self.conv3(img))
@@ -46,7 +45,7 @@ class Net(nn.Module):
 
 class DQN:
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=2000, batch_size=32, update_freq=100):
+                 memory_capacity=20000, batch_size=32, update_freq=100):
         self.eval_net = Net(action_n, state_n)
         self.target_net = Net(action_n, state_n)
         self.action_n = action_n
@@ -61,7 +60,7 @@ class DQN:
 
         self.step_counter = 0
         self.memory_counter = 0
-        self.memory = np.zeros((self.memory_capacity, (4 * self.state_n[0][0] * self.state_n[0][1] + self.state_n[1]) * 2 + 2))
+        self.memory = np.zeros((self.memory_capacity, (self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] + self.state_n[1]) * 2 + 2))
         self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=self.lr)
         self.loss_func = nn.MSELoss()
 
@@ -71,7 +70,7 @@ class DQN:
         x = [img, feature]
 
         if np.random.uniform() < self.epsilon:
-            action_val = self.eval_net.forward(x).gpu()
+            action_val = self.eval_net.forward(x).cpu()
             action = torch.max(action_val, 1)[1].data.numpy()
             action = action[0]
 
@@ -109,8 +108,9 @@ class DQN:
         b_picture_ = torch.FloatTensor(b_memory[:, -state_idx:-feature_idx]).to(device)
         b_feature_ = torch.FloatTensor(b_memory[:, -feature_idx:]).to(device)
         # reshape (batch_size, 4, 160, 380)
-        b_picture = np.reshape(b_picture, (self.batch_size, 4, self.state_n[0][0], self.state_n[0][1])).to(device)
-        b_picture_ = np.reshape(b_picture_, (self.batch_size, 4, self.state_n[0][0], self.state_n[0][1])).to(device)
+
+        b_picture = torch.reshape(b_picture, (self.batch_size, self.state_n[0][2], self.state_n[0][0], self.state_n[0][1])).to(device)
+        b_picture_ = torch.reshape(b_picture_, (self.batch_size, self.state_n[0][2], self.state_n[0][0], self.state_n[0][1])).to(device)
         b_s = [b_picture, b_feature]
         b_s_ = [b_picture_, b_feature_]
 
@@ -134,15 +134,90 @@ class DQN:
         self.eval_net.load_state_dict(torch.load(model_name))
 
 
+def transObser(observation, feature, mode):
+    if mode == 'picture':
+        observation = np.transpose(observation, (2, 1, 0))
+        observation = np.transpose(observation, (0, 2, 1))
+    elif mode == 'feature':
+        observation = feature
+    elif mode == 'mix':
+        observation_ = np.transpose(observation, (2, 1, 0))
+        observation_ = np.transpose(observation_, (0, 2, 1))
+        observation = [observation_, feature]
+    return observation
+
 
 if __name__ == '__main__':
-    karg = dict(frame_stack=4, frame_skip=1, reset_skip_sec=2, mode='mix')
+
+    mode = 'mix'
+    karg = dict(frame_stack=4, frame_skip=1, reset_skip_sec=2, mode=mode)
     lf2_env = gym.make('LittleFighter2-v0', **karg)
 
-    act = lf2_env.get_action_space()
-    obs = lf2_env.reset()
+    act_n = lf2_env.action_space.n
+    state_n = [lf2_env.observation_space['Game_Screen'].shape,
+               lf2_env.observation_space['Info'].shape[0]]
 
-    obs = [obs['Game_Screen'], obs['Info']]
+    # obs = [obs['Game_Screen'], obs['Info']]
+    #Y
+    train_ep = 600000
+    agent = DQN(act_n, state_n, 0)
+    records = []
+    #
+    for ep in range(train_ep):
+        obs = lf2_env.reset()
 
-    dqn = DQN(act, obs)
-    dqn.forward(obs)
+        pic = None
+        info = None
+
+        if mode == 'mix':
+            pic = obs['Game_Screen']
+            info = obs['Info']
+        elif mode == 'picture':
+            pic = obs
+        else:
+            info = obs
+        observation = transObser(pic, info, mode)
+
+        iter_cnt, total_reward = 0, 0
+
+        while 1:
+            iter_cnt += 1
+
+            lf2_env.render()
+
+            # RL choose action based on observation
+            action = agent.choose_action(observation)
+            # RL take action and get next observation and reward
+            obs, reward, done, _ = lf2_env.step(action)
+            if mode == 'mix':
+                pic = obs['Game_Screen']
+                info = obs['Info']
+            elif mode == 'picture':
+                pic = obs
+            else:
+                info = obs
+            observation_ = transObser(pic, info, mode)
+            # RL learn from this transition
+            agent.store_transition(observation, action, reward, observation_)
+            if agent.memory_counter > agent.memory_capacity:
+                agent.learn()
+
+            total_reward += reward
+
+            if done:
+                total_reward = round(total_reward, 2)
+                records.append((iter_cnt, total_reward))
+                print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
+                                                                                          total_reward))
+                break
+
+    print('-------------------------')
+    print('Finished training')
+    lf2_env.close()
+    print('Saving model.')
+    agent.save_model()
+
+
+    #
+    # dqn = DQN(act, obs)
+    # dqn.forward(obs)

@@ -238,6 +238,7 @@ class Lf2Env(gym.Env):
 
         self.restart = True
         self.game_over = False
+        self.frames.clear()
         time.sleep(self.reset_skip_sec)
         self.reward = 0
         print('Env reset.')
