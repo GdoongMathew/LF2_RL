@@ -70,7 +70,8 @@ class Lf2Env(gym.Env):
         self.frame_skip = frame_skip
         self.downscale = downscale
 
-        self.frames = deque([], maxlen=frame_stack)
+        self.frame_stack = frame_stack
+        self.frames = deque([], maxlen=self.frame_stack)
         # Immortal seconds before every rounds.
         self.reset_skip_sec = reset_skip_sec
 
@@ -123,6 +124,9 @@ class Lf2Env(gym.Env):
 
     def get_state(self):
         # return the current state of the game
+        if self.mode in ['picture', 'mix']:
+            while len(self.frames) < self.frame_stack:
+                time.sleep(0.001)
 
         if self.mode == 'picture':
             ob = np.stack(self.frames, axis=2)
