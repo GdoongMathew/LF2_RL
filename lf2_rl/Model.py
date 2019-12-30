@@ -9,8 +9,9 @@ import cv2
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = 'cpu'
 
+
 class Net(nn.Module):
-    def __init__(self, action_n, state_n):
+    def __init__(self, action_n, state_n, batch_size=32):
         super(Net, self).__init__()
 
         picture_n, feature_n = state_n[0], state_n[1]
@@ -18,28 +19,63 @@ class Net(nn.Module):
         # input 4 x 240 x 500
         # 492, 232
         self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4, dilation=2).to(device)  # 32 x 57 x 122
+        self.bn1 = nn.BatchNorm2d(32).to(device)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=2, stride=5).to(device)        # 64 x 12 x 25
+        self.bn2 = nn.BatchNorm2d(64).to(device)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=5, stride=1).to(device)        # 64 x 8 x 21
+        self.bn3 = nn.BatchNorm2d(64).to(device)
 
-        self.fc1 = nn.Linear(64 * 8 * 21, 200).to(device)
+        self.batch_size = batch_size
+
+        def conv2d_size_out(size, kernel_size=5, stride=2):
+            return (size - (kernel_size - 1) - 1) // stride + 1
+
+        convw = conv2d_size_out(
+                    conv2d_size_out(
+                        conv2d_size_out(picture_n[0], kernel_size=8, stride=4),
+                        kernel_size=2, stride=5),
+                    kernel_size=5, stride=1)
+
+        convh = conv2d_size_out(
+                    conv2d_size_out(
+                        conv2d_size_out(picture_n[1], kernel_size=8, stride=4),
+                        kernel_size=2, stride=5),
+                    kernel_size=5, stride=1)
+
+        self.fc1 = nn.Linear(64 * convw * convh, 512).to(device)
         self.fc1.weight.data.normal_(0, 0.1)  # initialization
-        self.fc2 = nn.Linear(200 + feature_n, 50).to(device)
+        self.fc2 = nn.Linear(512 + feature_n, 100).to(device)
         self.fc2.weight.data.normal_(0, 0.1)  # initialization
-        self.out = nn.Linear(50, action_n).to(device)
+
+        # LSTM
+        hidden = 50
+        self.lstm = nn.LSTMCell(100, hidden, bias=True).to(device)
+        self.hx = torch.randn(1, hidden).cuda()
+        self.cx = torch.randn(1, hidden).cuda()
+
+        self.out = nn.Linear(hidden, action_n).to(device)
         self.out.weight.data.normal_(0, 0.1)  # initialization
 
     def forward(self, x):
         img, feature = x[0], x[1]
         # img = cv2.resize(img, (240, 500))
-        img = Func.relu(self.conv1(img))
-        img = Func.relu(self.conv2(img))
-        img = Func.relu(self.conv3(img))
+        img = Func.relu(self.bn1(self.conv1(img)))
+        img = Func.relu(self.bn2(self.conv2(img)))
+        img = Func.relu(self.bn3(self.conv3(img)))
         img = img.view(img.size(0), -1)
         img = Func.relu(self.fc1(img))
 
         # feature nn
         x = torch.cat((img, feature), 1)
         x = Func.relu(self.fc2(x))
+
+        size = x.shape[0]
+        if size == 1:
+            self.hx, self.cx = self.lstm(x, (self.hx, self.cx))
+            x = self.hx
+        else:
+            x, _ = self.lstm(x, (torch.cat([self.hx] * self.batch_size, 0),
+                                 torch.cat([self.cx] * self.batch_size, 0)))
         return self.out(x)
 
 
@@ -60,6 +96,7 @@ class DQN:
 
         self.step_counter = 0
         self.memory_counter = 0
+        self.backward_count = 0
         self.memory = np.zeros((self.memory_capacity, (self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] + self.state_n[1]) * 2 + 2))
         self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=self.lr)
         self.loss_func = nn.MSELoss()
@@ -121,7 +158,11 @@ class DQN:
         loss = self.loss_func(q_eval, q_target)
 
         self.optimizer.zero_grad()
-        loss.backward()
+
+        if self.backward_count > 0:
+            loss.backward()
+        else:
+            loss.backward(retain_graph=True)
         self.optimizer.step()
 
     def save_model(self):
@@ -158,11 +199,9 @@ if __name__ == '__main__':
                lf2_env.observation_space['Info'].shape[0]]
 
     # obs = [obs['Game_Screen'], obs['Info']]
-    #Y
-    train_ep = 600000
-    agent = DQN(act_n, state_n, 0)
+    train_ep = 10000
+    agent = DQN(act_n, state_n, 0, memory_capacity=320)
     records = []
-    #
     for ep in range(train_ep):
         obs = lf2_env.reset()
 
@@ -217,7 +256,3 @@ if __name__ == '__main__':
     print('Saving model.')
     agent.save_model()
 
-
-    #
-    # dqn = DQN(act, obs)
-    # dqn.forward(obs)

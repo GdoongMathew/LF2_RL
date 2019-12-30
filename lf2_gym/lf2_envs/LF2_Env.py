@@ -12,8 +12,8 @@ import time
 import cv2
 import threading
 
-import gym
 from gym import spaces
+import gym
 
 
 pyautogui.FAILSAFE = False
@@ -278,7 +278,6 @@ class Lf2Env(gym.Env):
         return ob, reward, self.game_over, info
 
     def render(self, mode='human'):
-        # todo need to be modified...
         if mode == 'console':
             reward = self.get_reward()
             print('My player Hp: {}. Reward: {}'.format(my_player.Hp, reward))
@@ -308,7 +307,7 @@ class Lf2Env(gym.Env):
             else:
                 enemy_hp.append(hp_norm)
 
-        self.reward += (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
+        self.reward = (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
         mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Max
         self.reward += mp_reward
 
