@@ -311,6 +311,10 @@ class Lf2Env(gym.Env):
         mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Max
         self.reward += mp_reward
 
+        # death penalty
+        if not self.my_player.is_alive:
+            self.reward -= 50
+
         # Most simple reward?
         return self.reward
 
