@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as Func
 import numpy as np
 import gym
+import time
 import lf2_gym
 import cv2
 
@@ -15,10 +16,9 @@ class Net(nn.Module):
         super(Net, self).__init__()
 
         picture_n, feature_n = state_n[0], state_n[1]
-
         # input 4 x 240 x 500
         # 492, 232
-        self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4, dilation=2).to(device)  # 32 x 57 x 122
+        self.conv1 = nn.Conv2d(picture_n[-1], 32, kernel_size=8, stride=4, dilation=2).to(device)  # 32 x 57 x 122
         self.bn1 = nn.BatchNorm2d(32).to(device)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=2, stride=5).to(device)        # 64 x 12 x 25
         self.bn2 = nn.BatchNorm2d(64).to(device)
@@ -82,8 +82,8 @@ class Net(nn.Module):
 class DQN:
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
                  memory_capacity=20000, batch_size=32, update_freq=100):
-        self.eval_net = Net(action_n, state_n)
-        self.target_net = Net(action_n, state_n)
+        self.eval_net = Net(action_n, state_n, batch_size=batch_size)
+        self.target_net = Net(action_n, state_n, batch_size=batch_size)
         self.action_n = action_n
         self.state_n = state_n
         self.lr = learning_rate
@@ -135,7 +135,7 @@ class DQN:
         # sample batch transitions
         sample_index = np.random.choice(self.memory_capacity, self.batch_size)
         b_memory = self.memory[sample_index, :]
-        picture_idx = 4 * self.state_n[0][0] * self.state_n[0][1]
+        picture_idx = self.state_n[0][0] * self.state_n[0][1] * self.state_n[0][2]
         feature_idx = self.state_n[1]
         state_idx = picture_idx + feature_idx  # 4 * 160 * 380 + 28
         b_picture = torch.FloatTensor(b_memory[:, :picture_idx]).to(device)
@@ -175,7 +175,7 @@ class DQN:
         self.eval_net.load_state_dict(torch.load(model_name))
 
 
-def transObser(observation, feature, mode):
+def trans_obser(observation, feature, mode):
     if mode == 'picture':
         observation = np.transpose(observation, (2, 1, 0))
         observation = np.transpose(observation, (0, 2, 1))
@@ -191,7 +191,7 @@ def transObser(observation, feature, mode):
 if __name__ == '__main__':
 
     mode = 'mix'
-    karg = dict(frame_stack=4, frame_skip=1, reset_skip_sec=2, mode=mode)
+    karg = dict(frame_stack=2, frame_skip=1, reset_skip_sec=2, mode=mode)
     lf2_env = gym.make('LittleFighter2-v0', **karg)
 
     act_n = lf2_env.action_space.n
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=320)
+    agent = DQN(act_n, state_n, 0, memory_capacity=320, batch_size=16)
     records = []
     for ep in range(train_ep):
         obs = lf2_env.reset()
@@ -215,7 +215,7 @@ if __name__ == '__main__':
             pic = obs
         else:
             info = obs
-        observation = transObser(pic, info, mode)
+        observation = trans_obser(pic, info, mode)
 
         iter_cnt, total_reward = 0, 0
 
@@ -235,19 +235,18 @@ if __name__ == '__main__':
                 pic = obs
             else:
                 info = obs
-            observation_ = transObser(pic, info, mode)
+            observation_ = trans_obser(pic, info, mode)
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_)
-            if agent.memory_counter > agent.memory_capacity:
-                agent.learn()
-
             total_reward += reward
 
-            if done:
+            if done and agent.memory_counter > agent.memory_capacity:
                 total_reward = round(total_reward, 2)
                 records.append((iter_cnt, total_reward))
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
+                agent.learn()
+                print('Finish learning after one round.')
                 break
 
     print('-------------------------')
