@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=320, batch_size=16)
+    agent = DQN(act_n, state_n, 0, memory_capacity=0, batch_size=16)
     records = []
     for ep in range(train_ep):
         obs = lf2_env.reset()
@@ -222,7 +222,7 @@ if __name__ == '__main__':
         while 1:
             iter_cnt += 1
 
-            lf2_env.render()
+            lf2_env.render(mode='console')
 
             # RL choose action based on observation
             action = agent.choose_action(observation)
@@ -240,13 +240,15 @@ if __name__ == '__main__':
             agent.store_transition(observation, action, reward, observation_)
             total_reward += reward
 
-            if done and agent.memory_counter > agent.memory_capacity:
+            if done:
                 total_reward = round(total_reward, 2)
                 records.append((iter_cnt, total_reward))
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
-                agent.learn()
-                print('Finish learning after one round.')
+
+                if agent.memory_counter > agent.memory_capacity:
+                    agent.learn()
+                    print('Finish learning after one round.')
                 break
 
     print('-------------------------')

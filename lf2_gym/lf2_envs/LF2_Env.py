@@ -280,7 +280,7 @@ class Lf2Env(gym.Env):
     def render(self, mode='human'):
         if mode == 'console':
             reward = self.get_reward()
-            print('My player Hp: {}. Reward: {}'.format(my_player.Hp, reward))
+            print('My player Hp: {}. Reward: {}'.format(self.my_player.Hp, reward))
         elif mode == 'human':
             if self.gaming_screen is not None:
                 cv2.imshow('lf2_render', self.gaming_screen)
