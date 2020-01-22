@@ -163,6 +163,7 @@ class DQN:
             loss.backward()
         else:
             loss.backward(retain_graph=True)
+            # self.backward_count += 1
         self.optimizer.step()
 
     def save_model(self):
@@ -200,7 +201,7 @@ if __name__ == '__main__':
 
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=0, batch_size=16)
+    agent = DQN(act_n, state_n, 0, memory_capacity=500, batch_size=8)
     records = []
     for ep in range(train_ep):
         obs = lf2_env.reset()
@@ -249,6 +250,9 @@ if __name__ == '__main__':
                 if agent.memory_counter > agent.memory_capacity:
                     agent.learn()
                     print('Finish learning after one round.')
+
+                if ep % 10 == 0:
+                    torch.cuda.empty_cache()
                 break
 
     print('-------------------------')
