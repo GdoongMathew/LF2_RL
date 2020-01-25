@@ -2,17 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as Func
 import numpy as np
-import gym
-import time
-import lf2_gym
-import cv2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = 'cpu'
 
 
 class Net(nn.Module):
-    def __init__(self, action_n, state_n, batch_size=32):
+    def __init__(self, action_n, state_n, batch_size=32, lstm_hidden=50, dueling=False):
         super(Net, self).__init__()
 
         picture_n, feature_n = state_n[0], state_n[1]
@@ -48,13 +43,21 @@ class Net(nn.Module):
         self.fc2.weight.data.normal_(0, 0.1)  # initialization
 
         # LSTM
-        hidden = 50
-        self.lstm = nn.LSTMCell(100, hidden, bias=True).to(device)
-        self.hx = torch.randn(1, hidden).cuda()
-        self.cx = torch.randn(1, hidden).cuda()
+        self.lstm_hidden = lstm_hidden
+        self.action_n = action_n
 
-        self.out = nn.Linear(hidden, action_n).to(device)
-        self.out.weight.data.normal_(0, 0.1)  # initialization
+        self.lstm = nn.LSTMCell(100, self.lstm_hidden, bias=True).to(device)
+        self.hx = torch.randn(1, self.lstm_hidden).cuda()
+        self.cx = torch.randn(1, self.lstm_hidden).cuda()
+
+        self.dueling = dueling
+        if dueling:
+            self.adv = nn.Linear(self.lstm_hidden, self.action_n).to(device)
+            self.val = nn.Linear(self.lstm_hidden, 1).to(device)
+
+        else:
+            self.out = nn.Linear(self.lstm_hidden, self.action_n).to(device)
+            self.out.weight.data.normal_(0, 0.1)  # initialization
 
     def forward(self, x):
         img, feature = x[0], x[1]
@@ -76,14 +79,20 @@ class Net(nn.Module):
         else:
             x, _ = self.lstm(x, (torch.cat([self.hx] * self.batch_size, 0),
                                  torch.cat([self.cx] * self.batch_size, 0)))
-        return self.out(x)
+        if self.dueling:
+            val = self.val(x)
+            adv = self.adv(x)
+            return val + adv - adv.mean(1).unsqueeze(1).expand(self.lstm_hidden, self.action_n)
+        else:
+            return self.out(x)
 
 
 class DQN:
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=20000, batch_size=32, update_freq=100):
-        self.eval_net = Net(action_n, state_n, batch_size=batch_size)
-        self.target_net = Net(action_n, state_n, batch_size=batch_size)
+                 memory_capacity=20000, batch_size=32, update_freq=100, lstm_hidden=50, dueling=False):
+        self.dueling = dueling
+        self.eval_net = Net(action_n, state_n, batch_size=batch_size, lstm_hidden=lstm_hidden, dueling=self.dueling)
+        self.target_net = Net(action_n, state_n, batch_size=batch_size, lstm_hidden=lstm_hidden, dueling=self.dueling)
         self.action_n = action_n
         self.state_n = state_n
         self.lr = learning_rate
@@ -174,90 +183,4 @@ class DQN:
 
     def load_model(self, model_name):
         self.eval_net.load_state_dict(torch.load(model_name))
-
-
-def trans_obser(observation, feature, mode):
-    if mode == 'picture':
-        observation = np.transpose(observation, (2, 1, 0))
-        observation = np.transpose(observation, (0, 2, 1))
-    elif mode == 'feature':
-        observation = feature
-    elif mode == 'mix':
-        observation_ = np.transpose(observation, (2, 1, 0))
-        observation_ = np.transpose(observation_, (0, 2, 1))
-        observation = [observation_, feature]
-    return observation
-
-
-if __name__ == '__main__':
-
-    mode = 'mix'
-    karg = dict(frame_stack=2, frame_skip=1, reset_skip_sec=2, mode=mode)
-    lf2_env = gym.make('LittleFighter2-v0', **karg)
-
-    act_n = lf2_env.action_space.n
-    state_n = [lf2_env.observation_space['Game_Screen'].shape,
-               lf2_env.observation_space['Info'].shape[0]]
-
-    # obs = [obs['Game_Screen'], obs['Info']]
-    train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=500, batch_size=8)
-    records = []
-    for ep in range(train_ep):
-        obs = lf2_env.reset()
-
-        pic = None
-        info = None
-
-        if mode == 'mix':
-            pic = obs['Game_Screen']
-            info = obs['Info']
-        elif mode == 'picture':
-            pic = obs
-        else:
-            info = obs
-        observation = trans_obser(pic, info, mode)
-
-        iter_cnt, total_reward = 0, 0
-
-        while 1:
-            iter_cnt += 1
-
-            lf2_env.render(mode='console')
-
-            # RL choose action based on observation
-            action = agent.choose_action(observation)
-            # RL take action and get next observation and reward
-            obs, reward, done, _ = lf2_env.step(action)
-            if mode == 'mix':
-                pic = obs['Game_Screen']
-                info = obs['Info']
-            elif mode == 'picture':
-                pic = obs
-            else:
-                info = obs
-            observation_ = trans_obser(pic, info, mode)
-            # RL learn from this transition
-            agent.store_transition(observation, action, reward, observation_)
-            total_reward += reward
-
-            if done:
-                total_reward = round(total_reward, 2)
-                records.append((iter_cnt, total_reward))
-                print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
-                                                                                          total_reward))
-
-                if agent.memory_counter > agent.memory_capacity:
-                    agent.learn()
-                    print('Finish learning after one round.')
-
-                if ep % 10 == 0:
-                    torch.cuda.empty_cache()
-                break
-
-    print('-------------------------')
-    print('Finished training')
-    lf2_env.close()
-    print('Saving model.')
-    agent.save_model()
 

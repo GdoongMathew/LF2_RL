@@ -21,7 +21,6 @@ vk = {
 
 class Template:
     def __init__(self, player_id=1, ctrl_file=r'D:\Programs\Little_Fighter\data\control.txt'):
-
         if player_id > 3:
             raise ValueError("player_id can't be larger than 3.")
 
