@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import gym
 import time
 import lf2_gym

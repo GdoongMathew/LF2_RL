@@ -6,6 +6,23 @@ import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
+class SumTree:
+    data_pointer = 0
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity - 1)
+        self.data = np.zeros(capacity, dtype=object)
+
+    def add(self, p, data):
+        tree_idx = self.data_pointer + self.capacity - 1
+        self.data[self.data_pointer] = data
+        self.update(tree_idx, p)
+
+    def update(self, tree_idx, p):
+        pass
+
+
 class Net(nn.Module):
     def __init__(self, action_n, state_n, batch_size=32, lstm_hidden=50, dueling=False):
         super(Net, self).__init__()
@@ -82,9 +99,10 @@ class Net(nn.Module):
         if self.dueling:
             val = self.val(x)
             adv = self.adv(x)
-            return val + adv - adv.mean(1).unsqueeze(1).expand(self.lstm_hidden, self.action_n)
+            x = val + adv - adv.mean(1).unsqueeze(1).expand(self.batch_size, self.action_n)
         else:
-            return self.out(x)
+            x = self.out(x)
+        return x
 
 
 class DQN:
