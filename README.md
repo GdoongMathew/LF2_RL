@@ -1,6 +1,9 @@
 # LF2_RL
 A testing little fighter gym simulator for reinforcement learning studying.
 
+## Demo
+![Firen v.s Freeze](demo_img/demo3.gif)
+
 ## Installation
 1. Install [OpenAI Gym](https://github.com/openai/gym) and its dependencies.
 ```
