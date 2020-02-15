@@ -2,8 +2,8 @@
 A testing little fighter gym simulator for reinforcement learning studying.
 
 ## Demo
-![](demo_img/demo3.gif =380x)
-![](demo_img/demo2.gif =380x)
+![](demo_img/demo3.gif)
+![](demo_img/demo2.gif)
 
 
 ## Installation

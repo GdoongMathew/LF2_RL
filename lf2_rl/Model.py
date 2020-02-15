@@ -244,8 +244,12 @@ class DQN:
         self.step_counter += 1
 
         # sample batch transitions
-        sample_index = np.random.choice(self.memory_capacity, self.batch_size)
-        b_memory = self.memory[sample_index, :]
+
+        if self.prioritized:
+            tree_idx, b_memory, is_weight = self.memory.sample(self.batch_size)
+        else:
+            sample_index = np.random.choice(self.memory_capacity, self.batch_size)
+            b_memory = self.memory[sample_index, :]
         picture_idx = self.state_n[0][0] * self.state_n[0][1] * self.state_n[0][2]
         feature_idx = self.state_n[1]
         state_idx = picture_idx + feature_idx  # 4 * 160 * 380 + 28
