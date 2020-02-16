@@ -43,12 +43,12 @@ if __name__ == '__main__':
 Value | Action | Value | Action
 --- | --- | --- | ---
 0 | idle    | 8 | run
-1 | up      | 9 | combo attact1
-2 | down    | 10| combo attact2
-3 | left    | 11| combo attact3
-4 | right   | 12| combo attact4
-5 | A       | 13| combo attact5
-6 | J       | 14| combo attact6
+1 | up      | 9 | combo attack1
+2 | down    | 10| combo attack2
+3 | left    | 11| combo attack3
+4 | right   | 12| combo attack4
+5 | A       | 13| combo attack5
+6 | J       | 14| combo attack6
 7 | D
 
 ## Observation Space
