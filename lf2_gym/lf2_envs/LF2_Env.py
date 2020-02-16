@@ -33,7 +33,8 @@ class Lf2Env(gym.Env):
                  frame_stack=4,
                  frame_skip=1,
                  reset_skip_sec=2,
-                 mode='mix'):
+                 mode='mix',
+                 basic_action=False):
         """
         Initialize the gym environment
         :param windows_name: name of the windows
@@ -43,6 +44,7 @@ class Lf2Env(gym.Env):
         :param frame_skip: number of frames to skip before stacking.
         :param reset_skip_sec: immortal time (sec)
         :param mode: observation output mode.
+        :param basic_action: only output L,R,U,D,A,D,J
         """
         super(Lf2Env, self).__init__()
 
@@ -80,6 +82,7 @@ class Lf2Env(gym.Env):
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
         self.mode = mode
+        self.basic_action = basic_action
         self.reward = 0
         while True:
             if len(self.frames) != 0:
@@ -323,7 +326,7 @@ class Lf2Env(gym.Env):
         get a list of the current player actions
         :return: a list of actions
         """
-        return self.my_player.get_action_list()
+        return self.my_player.get_action_list(basic_action=self.basic_action)
 
     def get_info(self):
         """

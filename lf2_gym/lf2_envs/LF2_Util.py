@@ -222,15 +222,18 @@ class Player:
                 return name
         return ''
 
-    def get_action_list(self):
+    def get_action_list(self, basic_action=False):
         """
         return list of action space if exists, else return None
         :return: list of available actions.
         """
-        if len(self.name):
-            lf2_char = globals()[self.name](player_id=self.idx)
-            return lf2_char.action_space()
-        return None
+        assert len(self.name), 'No character name {} found.'.format(self.name)
+        lf2_char = Template(player_id=self.idx) if basic_action \
+            else globals()[self.name](player_id=self.idx)
+        action_s = lf2_char.action_space()
+        if basic_action:
+            action_s.remove('run')
+        return action_s
 
     def perform_action(self, action_str):
         """
