@@ -25,6 +25,15 @@ Char_Name = OrderedDict([
     ("Freeze",   0), ("Dennis",    0), ("Woody",     0), ("Davis",     0)]
 )
 
+BackGround_code = {
+    0: 'HK Coliseum',       1: 'Lion Forest',       2: 'Stanley Prison',    3: 'The Great Wall',
+    4: "Queen's Island",    5: 'Forbidden Tower',   6: 'BrokeBack Cliff',   7: 'CUHK',
+    8: 'Uai Hom Village',   9: 'Template1',         10: 'Template2',        11: 'Template3', 100: 'Random'
+}
+
+Difficulty = {2: 'Easy', 1: 'Normal', 0: 'Difficult', -1: 'Crazy'}
+Mode = {0: 'VS', 1: 'Stage', 2: '1v1', 3: '2v2', 4: 'Battle', 5: 'Demo', 6: 'PlayBack', 7: 'Quit'}
+
 
 class Lf2AddressTable:
     # All shifting address value
@@ -68,6 +77,10 @@ class Lf2AddressTable:
 
     Names = [0x44FCC0 + i * 11 for i in range(11)]
     DataFile = [None] * 65
+
+    BackGround = 0x44D024
+    Difficulty = 0x450C30
+    Mode = 0x451160
 
 
 class ProcessReading:
@@ -115,6 +128,9 @@ class ProcessReading:
 
     def read_ushort(self, lpBaseAddress):
         return pymem.memory.read_ushort(self.proc_handle, lpBaseAddress)
+
+    def write_bytes(self, lpBaseAddress, data, n_size=4):
+        return pymem.memory.write_bytes(self.proc_handle, lpBaseAddress, data, n_size)
 
 
 class Player:

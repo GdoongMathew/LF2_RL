@@ -54,6 +54,7 @@ class Lf2Env(gym.Env):
         self.PyCWnd1.SetForegroundWindow()
         self.PyCWnd1.SetFocus()
         self.kill_thread = False
+        self.basic_action = basic_action
         self.sct = mss()
 
         self.players = {0: None, 1: None, 2: None, 3: None,
@@ -82,7 +83,6 @@ class Lf2Env(gym.Env):
 
         self.action_space = spaces.Discrete(len(self.get_action_space()))
         self.mode = mode
-        self.basic_action = basic_action
         self.reward = 0
         while True:
             if len(self.frames) != 0:
@@ -113,16 +113,14 @@ class Lf2Env(gym.Env):
             p_c = Player(self.game_hwnd, i, com=True)
             p_h = Player(self.game_hwnd, i)
             if p_c.is_active:
-                del p_h
                 self.players[i] = p_c
                 num_player += 1
             elif p_h.is_active:
-                del p_c
                 self.players[i] = p_h
                 num_player += 1
             else:
                 self.players[i] = None
-
+        del p_c, p_h
         return num_player
 
     def get_state(self):
@@ -235,7 +233,7 @@ class Lf2Env(gym.Env):
         """
 
         if default_ok is None:
-            default_ok = self.my_player.perform_action('attact')
+            default_ok = self.my_player.perform_action('attack')
         self.press_key(['f4', default_ok])
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
@@ -341,6 +339,9 @@ class Lf2Env(gym.Env):
     def close(self):
         cv2.destroyAllWindows()
         self.kill_thread = True
+
+    def seed(self, seed=None):
+        pass
 
 
 if __name__ == '__main__':
