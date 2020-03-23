@@ -4,6 +4,7 @@
 from ctypes.wintypes import BOOL
 from ctypes.wintypes import DWORD
 from ctypes.wintypes import HANDLE
+from configobj import ConfigObj
 from sys import byteorder
 from inspect import signature
 from lf2_gym.lf2_envs.LF2_char import *
@@ -12,6 +13,7 @@ import functools
 import ctypes
 import pymem
 import win32process
+
 
 PROCESS_VM_OPERATION = 0x0008
 PROCESS_VM_READ = 0x0010
@@ -26,9 +28,10 @@ Char_Name = OrderedDict([
 )
 
 BackGround_code = {
-    0: 'HK Coliseum',       1: 'Lion Forest',       2: 'Stanley Prison',    3: 'The Great Wall',
-    4: "Queen's Island",    5: 'Forbidden Tower',   6: 'BrokeBack Cliff',   7: 'CUHK',
-    8: 'Uai Hom Village',   9: 'Template1',         10: 'Template2',        11: 'Template3', 100: 'Random'
+    'HK Coliseum': 0,       'Lion Forest': 1,       'Stanley Prison': 2,    'The Great Wall': 3,
+    "Queen's Island": 4,    'Forbidden Tower': 5,   'BrokeBack Cliff': 6,   'CUHK': 7,
+    'Uai Hom Village': 8,   'Template1': 9,         'Template2': 10,        'Template3': 11,
+    'Random': 100
 }
 
 Difficulty = {2: 'Easy', 1: 'Normal', 0: 'Difficult', -1: 'Crazy'}
@@ -261,3 +264,25 @@ class Player:
         if 'direction' in sig:
             return functools.partial(act_func, self.Facing)()
         return getattr(self.lf2_char, action_str)()
+
+
+class PlayGround:
+    """
+    All Lf2 Environment Properties.
+    """
+    def __init__(self, config_path):
+        self.gym_config = ConfigObj(config_path)['Gym_Parameter']
+        self.com_num = self.gym_config['Com_Player_Num']
+        self.fighter = self.gym_config['Fighter']
+        self.bg = self.gym_config['Background']
+        assert self.bg in list(BackGround_code.keys())
+
+    def set_property(self):
+        pass
+
+    def find_player(self):
+        pass
+
+
+if __name__ == '__main__':
+    PlayGround(r'D:\Python Project\LF2_RL\lf2_gym\lf2_envs\config\config_1.ini')

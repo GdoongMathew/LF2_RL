@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=500, batch_size=8, dueling=True)
+    agent = DQN(act_n, state_n, 0, memory_capacity=3000, batch_size=8, dueling=True, prioritized=False)
     records = []
     for ep in range(train_ep):
         obs = lf2_env.reset()
