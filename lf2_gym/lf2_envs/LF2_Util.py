@@ -7,7 +7,8 @@ from ctypes.wintypes import HANDLE
 from configobj import ConfigObj
 from sys import byteorder
 from inspect import signature
-from lf2_gym.lf2_envs.LF2_char import *
+from lf2_envs.LF2_char import *
+from lf2_envs.winguiauto import winguiauto as winauto
 from collections import OrderedDict
 import functools
 import ctypes
@@ -272,12 +273,33 @@ class PlayGround:
     """
     def __init__(self, config_path):
         self.gym_config = ConfigObj(config_path)['Gym_Parameter']
+        self.lf2_path = ConfigObj(config_path)['LF2']['ShortCut']
         self.com_num = self.gym_config['Com_Player_Num']
         self.fighter = self.gym_config['Fighter']
         self.bg = self.gym_config['Background']
         assert self.bg in list(BackGround_code.keys())
 
+    def run_app(self):
+        """
+        run Little Fighter if it isn't running.
+        :return: windows hwnd
+        """
+        try:
+            hwnd = winauto.findTopWindow(wantedText='Little Fighter 2')
+        except winauto.WinGuiAutoError:
+            import os
+            os.startfile(self.lf2_path)
+            hwnd = []
+            while not hwnd:
+                hwnd = winauto.findTopWindows(wantedText='Little Fighter 2')
+
+            hwnd = hwnd[0]
+        return hwnd
+
     def set_property(self):
+        pass
+
+    def find_property(self):
         pass
 
     def find_player(self):
@@ -285,4 +307,7 @@ class PlayGround:
 
 
 if __name__ == '__main__':
-    PlayGround(r'D:\Python Project\LF2_RL\lf2_gym\lf2_envs\config\config_1.ini')
+    lf2_pgd = PlayGround(r'D:\Python Project\LF2_RL\lf2_gym\lf2_envs\config\config_1.ini')
+    hwnd = lf2_pgd.run_app()
+    print(hwnd)
+

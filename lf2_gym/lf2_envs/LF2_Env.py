@@ -2,7 +2,6 @@ from lf2_gym.lf2_envs.LF2_Util import *
 from mss import mss
 from win32api import GetSystemMetrics
 import numpy as np
-from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
 from collections import deque
 import win32gui
 import win32con
