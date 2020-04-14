@@ -7,17 +7,22 @@ from ctypes.wintypes import HANDLE
 from configobj import ConfigObj
 from sys import byteorder
 from inspect import signature
+
 from lf2_envs.LF2_char import *
 from lf2_envs.winguiauto import winguiauto as winauto
 from collections import OrderedDict
+import time
+import pyautogui
 import functools
 import ctypes
 import pymem
 import win32process
+import win32ui
 
 
 PROCESS_VM_OPERATION = 0x0008
 PROCESS_VM_READ = 0x0010
+PROCESS_VM_WRITE = 0x0020
 
 Char_Name = OrderedDict([
     ("Template", 0), ("Julian",    0), ("Firzen",    0), ("LouisEX",   0),
@@ -37,6 +42,20 @@ BackGround_code = {
 
 Difficulty = {2: 'Easy', 1: 'Normal', 0: 'Difficult', -1: 'Crazy'}
 Mode = {0: 'VS', 1: 'Stage', 2: '1v1', 3: '2v2', 4: 'Battle', 5: 'Demo', 6: 'PlayBack', 7: 'Quit'}
+
+
+def press_key(keys):
+    last_key = ''
+    if keys is not None:
+        for key in keys:
+            if key == last_key:
+                # to prevent not sending key event if two consecutive identical keys.
+                pyautogui.keyUp(key)
+            pyautogui.keyDown(key)
+            last_key = key
+        time.sleep(0.1)
+        for key in keys:
+            pyautogui.keyUp(key)
 
 
 class Lf2AddressTable:
@@ -87,8 +106,8 @@ class Lf2AddressTable:
     Mode = 0x451160
 
 
-class ProcessReading:
-    # Reading process memory from certain memory address
+class ProcessWR:
+    # Reading/Writing process memory from certain memory address
     def __init__(self, win_handle):
         # Windows
         self.win_handle = win_handle
@@ -101,7 +120,7 @@ class ProcessReading:
         self.GetLastError.restype = DWORD
         self.GetLastError.argtypes = ()
 
-        self.proc_handle = self.get_process_handle(self.pid, PROCESS_VM_OPERATION | PROCESS_VM_READ)
+        self.proc_handle = self.get_process_handle(self.pid, PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE)
 
     def get_process_handle(self, dwProcessId, dwDesiredAccess, bInheritHandle=False):
         handle = self.OpenProcess(dwDesiredAccess, bInheritHandle, dwProcessId)
@@ -133,13 +152,13 @@ class ProcessReading:
     def read_ushort(self, lpBaseAddress):
         return pymem.memory.read_ushort(self.proc_handle, lpBaseAddress)
 
-    def write_bytes(self, lpBaseAddress, data, n_size=4):
-        return pymem.memory.write_bytes(self.proc_handle, lpBaseAddress, data, n_size)
+    def write_int(self, lpBaseAddress, data):
+        return pymem.memory.write_int(self.proc_handle, lpBaseAddress, data)
 
 
 class Player:
     def __init__(self, game_proc_handle, idx, com=False):
-        self.game_reading = ProcessReading(game_proc_handle)
+        self.game_reading = ProcessWR(game_proc_handle)
         self.idx = idx  # 0 ~ 7
         self.is_computer = com
         self.player_address = self.game_reading.read_int(Lf2AddressTable.Player[self.idx]
@@ -266,6 +285,9 @@ class Player:
             return functools.partial(act_func, self.Facing)()
         return getattr(self.lf2_char, action_str)()
 
+    def change_char(self, char_name):
+        assert char_name in Char_Name.keys()
+
 
 class PlayGround:
     """
@@ -274,30 +296,44 @@ class PlayGround:
     def __init__(self, config_path):
         self.gym_config = ConfigObj(config_path)['Gym_Parameter']
         self.lf2_path = ConfigObj(config_path)['LF2']['ShortCut']
+        ctrl = ConfigObj(config_path)['LF2']['CtrlFile']
+        update_ctrl(ctrl)
+        self.mode = self.gym_config['Mode']
         self.com_num = self.gym_config['Com_Player_Num']
         self.fighter = self.gym_config['Fighter']
         self.bg = self.gym_config['Background']
         assert self.bg in list(BackGround_code.keys())
 
+        self.lf2_hwnd, self.lf2_win_hwnd = self.run_app()
+        self.process_wr = ProcessWR(self.lf2_hwnd)
+
     def run_app(self):
         """
-        run Little Fighter if it isn't running.
+        run Little Fighter if it isn't running and automate all setup.
         :return: windows hwnd
         """
+        windows_name = 'Little Fighter 2'
         try:
-            hwnd = winauto.findTopWindow(wantedText='Little Fighter 2')
+            hwnd = winauto.findTopWindow(wantedText=windows_name)
         except winauto.WinGuiAutoError:
             import os
             os.startfile(self.lf2_path)
             hwnd = []
             while not hwnd:
-                hwnd = winauto.findTopWindows(wantedText='Little Fighter 2')
-
+                hwnd = winauto.findTopWindows(wantedText=windows_name)
             hwnd = hwnd[0]
-        return hwnd
+
+        win_hwnd = win32ui.FindWindow(None, windows_name)
+        win_hwnd.SetForegroundWindow()
+        win_hwnd.SetFocus()
+        return hwnd, win_hwnd
 
     def set_property(self):
-        pass
+        if Mode[self.process_wr.read_int(0x451160)] != self.mode:
+            self.process_wr.write_int(0x451160, 0)
+        press_key(Template().attack())
+
+
 
     def find_property(self):
         pass
@@ -308,6 +344,6 @@ class PlayGround:
 
 if __name__ == '__main__':
     lf2_pgd = PlayGround(r'D:\Python Project\LF2_RL\lf2_gym\lf2_envs\config\config_1.ini')
-    hwnd = lf2_pgd.run_app()
-    print(hwnd)
+    time.sleep(5)
+    lf2_pgd.set_property()
 

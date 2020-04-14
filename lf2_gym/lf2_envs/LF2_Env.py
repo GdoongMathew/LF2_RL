@@ -233,7 +233,7 @@ class Lf2Env(gym.Env):
 
         if default_ok is None:
             default_ok = self.my_player.perform_action('attack')
-        self.press_key(['f4', default_ok])
+        press_key(['f4', default_ok])
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
@@ -248,19 +248,6 @@ class Lf2Env(gym.Env):
         print('Env reset.')
         return self.get_state()
 
-    def press_key(self, keys):
-        last_key = ''
-        if keys is not None:
-            for key in keys:
-                if key == last_key:
-                    # to prevent not sending key event if two consecutive identical keys.
-                    pyautogui.keyUp(key)
-                pyautogui.keyDown(key)
-                last_key = key
-            time.sleep(0.1)
-            for key in keys:
-                pyautogui.keyUp(key)
-
     def step(self, action_id):
         """
         Take an action within the environment
@@ -268,7 +255,7 @@ class Lf2Env(gym.Env):
         :return: observation, reward, done, info
         """
         act_name = self.get_action_space()[action_id]
-        self.press_key(self.my_player.perform_action(act_name))
+        press_key(self.my_player.perform_action(act_name))
         ob = self.get_state()
         reward = self.get_reward()
 

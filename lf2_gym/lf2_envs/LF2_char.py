@@ -18,13 +18,21 @@ vk = {
     0xC0: "`", 0xDC: "\\", 0xBC: ",", 0xBE: ".", 0xBF: "/"
     }
 
+ctrl_path = r'D:\Programs\Little_Fighter\data\control.txt'
+
+
+def update_ctrl(cst_ctrl_path):
+    global ctrl_path
+    ctrl_path = cst_ctrl_path
+
 
 class Template:
-    def __init__(self, player_id=1, ctrl_file=r'D:\Programs\Little_Fighter\data\control.txt'):
+    def __init__(self, player_id=1):
+        global ctrl_path
         if player_id > 3:
             raise ValueError("player_id can't be larger than 3.")
 
-        with open(ctrl_file) as file:
+        with open(ctrl_path) as file:
             for i, line in enumerate(file):
                 if i == player_id:
                     ctrl_code = [int(x) for x in line.split(' ') if x not in (' ', '\n')]
@@ -34,9 +42,9 @@ class Template:
         self.d = vk[ctrl_code[2]]              # Down
         self.l = vk[ctrl_code[3]]              # Left
         self.r = vk[ctrl_code[4]]              # Right
-        self.att = vk[ctrl_code[5]]            # Attact
+        self.att = vk[ctrl_code[5]]            # Attack
         self.jum = vk[ctrl_code[6]]            # Jump
-        self.defend = vk[ctrl_code[7]]         # Defend
+        self.deffend = vk[ctrl_code[7]]        # Defend
 
     def action_space(self):
         """
@@ -72,8 +80,8 @@ class Template:
     def jump(self):
         return self.jum
 
-    def deffend(self):
-        return self.defend
+    def defend(self):
+        return self.deffend
 
     def run(self, direction='right'):
         return getattr(self, direction)() + getattr(self, direction)()
@@ -82,37 +90,37 @@ class Template:
 class John(Template):
     def sp_attack1(self, direction='right'):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
     def sp_attack2(self):
         # Heal others
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
     def sp_attack3(self, direction='right'):
         # Energy Shield
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack4(self):
         # Energy Disk
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
     def sp_attack5(self):
         # Heal myself
-        return self.deffend() + self.down() + self.jump()
+        return self.defend() + self.down() + self.jump()
 
 
 class Deep(Template):
     def sp_attack1(self, direction='right', num=1):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack2(self):
         # Strike
-        return self.deffend() + self.down() + self.attack()
+        return self.defend() + self.down() + self.attack()
 
     def sp_attack3(self):
         # Leap Attact
-        return self.deffend() + self.up() + self.jump() + self.attack()
+        return self.defend() + self.up() + self.jump() + self.attack()
 
     def sp_attack4(self):
         # Leap Attact2
@@ -120,43 +128,43 @@ class Deep(Template):
 
     def sp_attack5(self, direction='right'):
         # Dash Strafe
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
 
 class Henry(Template):
     def sp_attack1(self, direction='right'):
         # Dragon Palm
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
     def sp_attack2(self, num=1):
         # Multiple Shot
-        return self.deffend() + self.jump() + num * self.attack()
+        return self.defend() + self.jump() + num * self.attack()
 
     def sp_attack3(self, direction='right'):
         # Critical Show
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack4(self):
         # Sonata of the Death
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
 
 class Rudolf(Template):
     def sp_attack1(self, direction='right'):
         # Leap Attact
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack2(self, direction='right', num=1):
         # Multiple Ninja Star
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack3(self):
         # Hide
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
     def sp_attack4(self):
         # Double
-        return self.deffend() + self.down() + self.jump()
+        return self.defend() + self.down() + self.jump()
 
 
 class Louis(Template):
@@ -170,29 +178,29 @@ class Louis(Template):
 
     def sp_attack3(self, direction='right'):
         # Thunder Kick
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack4(self):
         # Whirlwind Throw
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
     def sp_attack5(self, direction='right'):
         # Phoenix Palm
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
 
 class Firen(Template):
     def sp_attack1(self, direction='right', num=1):
         # Fire Ball
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack2(self, direction='right'):
         # Blaze
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack3(self):
         # Inferno
-        return self.deffend() + self.down() + self.jump()
+        return self.defend() + self.down() + self.jump()
 
     def sp_attack4(self):
         # Explosion
@@ -202,125 +210,125 @@ class Firen(Template):
 class Freeze(Template):
     def sp_attack1(self, direction='right', num=1):
         # Ice Blast
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack2(self):
         # Ice Sword
-        return self.deffend() + self.down() + self.jump()
+        return self.defend() + self.down() + self.jump()
 
     def sp_attack3(self, direction='right'):
         # Icicle
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack4(self):
         # Whirlwind
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
 
 class Dennis(Template):
     def sp_attack1(self, direction='right', num=1):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack2(self):
         # Shrafe
-        return self.deffend() + self.down() + self.attack()
+        return self.defend() + self.down() + self.attack()
 
     def sp_attack3(self, direction='right'):
         # Whirlwind Kick
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack4(self):
         # Chasing Blast
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
 
 class Woody(Template):
     def sp_attack1(self):
         # Flip Kick
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
     def sp_attack2(self):
         # Turning Kick
-        return self.deffend() + self.down() + self.attack()
+        return self.defend() + self.down() + self.attack()
 
     def sp_attack3(self):
         # Teleport to enemy
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
     def sp_attack4(self):
         # Teleport to friend
-        return self.deffend() + self.down() + self.jump()
+        return self.defend() + self.down() + self.jump()
 
     def sp_attaact5(self, direction='right'):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
     def sp_attack6(self, direction='right'):
         # Tiger Dash
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
 
 class Davis(Template):
     def sp_attack1(self):
         # Leap Attact
-        return self.deffend() + self.up() + self.jump() + self.attack()
+        return self.defend() + self.up() + self.jump() + self.attack()
 
     def sp_attack2(self, direction='right', num=1):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack3(self):
         # Shrafe
-        return self.deffend() + self.down() + self.attack()
+        return self.defend() + self.down() + self.attack()
 
     def sp_attack4(self):
         # Dragon Punch
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
 
 class Mark(Template):
     def sp_attack1(self, direction='right', num=1):
         # Crash Punch
-        return self.deffend() + getattr(self, direction)() + num * self.attack()
+        return self.defend() + getattr(self, direction)() + num * self.attack()
 
     def sp_attack2(self, direction='right'):
         # Body Attact
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
 
 class Jan(Template):
     def sp_attack1(self):
         # Devil's Judgement
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
     def sp_attack2(self):
         # Angel's Blessing
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
 
 class Justin(Template):
     def sp_attack1(self, num=1):
         # Wolf Punch
-        return self.deffend() + self.down() + self.attack() * 1
+        return self.defend() + self.down() + self.attack() * 1
 
     def sp_attack2(self, direction='right'):
         # Energy Blast
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
 
 class Bat(Template):
     def sp_attack1(self, direction='right'):
         # Speed Punch
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack2(self, direction='right'):
         # Eye Laser
-        return self.deffend() + getattr(self, direction)() + self.attack()
+        return self.defend() + getattr(self, direction)() + self.attack()
 
     def sp_attack3(self):
         # Sommon Bats
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
 
 class Julian(Template):
@@ -330,37 +338,37 @@ class Julian(Template):
 
     def sp_attack2(self):
         # Uppercut
-        return self.deffend() + self.up() + self.attack()
+        return self.defend() + self.up() + self.attack()
 
     def sp_attack3(self, direction='right', num=1):
         # Skull Blast
-        return self.deffend() + getattr(self, direction)() + self.attack() * num
+        return self.defend() + getattr(self, direction)() + self.attack() * num
 
     def sp_attack4(self, num=0):
         # Mirror Image
-        return self.deffend() + self.jump() + self.attack() + self.jump() * num
+        return self.defend() + self.jump() + self.attack() + self.jump() * num
 
     def sp_attack5(self):
         # Big Bang
-        return self.deffend() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
     def sp_attack6(self, direction='right'):
         # Soul Bomb
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
 
 class Firzen(Template):
     def sp_attack1(self, direction='right'):
         # Firzen Cannon
-        return self.deffend() + getattr(self, direction)() + self.jump()
+        return self.defend() + getattr(self, direction)() + self.jump()
 
     def sp_attack2(self, num=1):
         # Overwhelming Disaster
-        return self.deffend() + self.up() + num * self.attack()
+        return self.defend() + self.up() + num * self.attack()
 
     def sp_attack3(self):
         # Arctic Volcano
-        self.deffend() + self.up() + self.jump()
+        self.defend() + self.up() + self.jump()
 
 
 if __name__ == '__main__':
