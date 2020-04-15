@@ -19,24 +19,23 @@ import pymem
 import win32process
 import win32ui
 
-
 PROCESS_VM_OPERATION = 0x0008
 PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
 
 Char_Name = OrderedDict([
-    ("Template", 0), ("Julian",    0), ("Firzen",    0), ("LouisEX",   0),
-    ("Bat",      0), ("Justin",    0), ("Knight",    0), ("Jan",       0),
-    ("Monk",     0), ("Sorcerer",  0), ("Jack",      0), ("Mark",      0),
-    ("Hunter",   0), ("Bandit",    0), ("Deep",      0), ("John",      0),
-    ("Henry",    0), ("Rudolf",    0), ("Louis",     0), ("Firen",     0),
-    ("Freeze",   0), ("Dennis",    0), ("Woody",     0), ("Davis",     0)]
+    ("Template", 0), ("Julian", 0), ("Firzen", 0), ("LouisEX", 0),
+    ("Bat", 0), ("Justin", 0), ("Knight", 0), ("Jan", 0),
+    ("Monk", 0), ("Sorcerer", 0), ("Jack", 0), ("Mark", 0),
+    ("Hunter", 0), ("Bandit", 0), ("Deep", 0), ("John", 0),
+    ("Henry", 0), ("Rudolf", 0), ("Louis", 0), ("Firen", 0),
+    ("Freeze", 0), ("Dennis", 0), ("Woody", 0), ("Davis", 0)]
 )
 
 BackGround_code = {
-    'HK Coliseum': 0,       'Lion Forest': 1,       'Stanley Prison': 2,    'The Great Wall': 3,
-    "Queen's Island": 4,    'Forbidden Tower': 5,   'BrokeBack Cliff': 6,   'CUHK': 7,
-    'Uai Hom Village': 8,   'Template1': 9,         'Template2': 10,        'Template3': 11,
+    'HK Coliseum': 0, 'Lion Forest': 1, 'Stanley Prison': 2, 'The Great Wall': 3,
+    "Queen's Island": 4, 'Forbidden Tower': 5, 'BrokeBack Cliff': 6, 'CUHK': 7,
+    'Uai Hom Village': 8, 'Template1': 9, 'Template2': 10, 'Template3': 11,
     'Random': 100
 }
 
@@ -293,16 +292,19 @@ class PlayGround:
     """
     All Lf2 Environment Properties.
     """
+
     def __init__(self, config_path):
         self.gym_config = ConfigObj(config_path)['Gym_Parameter']
         self.lf2_path = ConfigObj(config_path)['LF2']['ShortCut']
         ctrl = ConfigObj(config_path)['LF2']['CtrlFile']
         update_ctrl(ctrl)
-        self.mode = self.gym_config['Mode']
-        self.com_num = self.gym_config['Com_Player_Num']
-        self.fighter = self.gym_config['Fighter']
-        self.bg = self.gym_config['Background']
-        assert self.bg in list(BackGround_code.keys())
+
+        # self.mode = self.gym_config['Mode']
+        # self.com_num = self.gym_config['Com_Player_Num']
+        # self.fighter = self.gym_config['Fighter']
+        # self.bg = self.gym_config['Background']
+        assert self.gym_config['Mode'], 'Game mode is required.'
+        assert self.gym_config['Background'] in list(BackGround_code.keys())
 
         self.lf2_hwnd, self.lf2_win_hwnd = self.run_app()
         self.process_wr = ProcessWR(self.lf2_hwnd)
@@ -328,12 +330,28 @@ class PlayGround:
         win_hwnd.SetFocus()
         return hwnd, win_hwnd
 
-    def set_property(self):
-        if Mode[self.process_wr.read_int(0x451160)] != self.mode:
+    def init_setup(self):
+        if Mode[self.process_wr.read_int(0x451160)] != self.gym_config['Mode']:
             self.process_wr.write_int(0x451160, 0)
         press_key(Template().attack())
 
+    def refresh(self):
+        keys = self.gym_config.keys()
+        # Setting default value
+        if 'Fighter' not in keys:
+            self.gym_config['Fighter'] = 'Random'
+        if 'Team' not in keys:
+            self.gym_config['Team'] = 'Independent'
+        if 'Background' not in keys:
+            self.gym_config['Background'] = 'Random'
+        if 'Difficulty' not in keys:
+            self.gym_config['Difficulty'] = 'Random'
+        if 'Com_Player_Num' not in keys:
+            self.gym_config['Com_Player_Num'] = 'Random'
+        if 'Com_Payer_list' not in keys:
+            self.gym_config['Com_Payer_list'] = 'Random'
 
+        # todo: make sure that if len(com_player_list) doesn't match with the com_player_num, append random players.
 
     def find_property(self):
         pass
@@ -344,6 +362,5 @@ class PlayGround:
 
 if __name__ == '__main__':
     lf2_pgd = PlayGround(r'D:\Python Project\LF2_RL\lf2_gym\lf2_envs\config\config_1.ini')
-    time.sleep(5)
-    lf2_pgd.set_property()
-
+    # time.sleep(5)
+    lf2_pgd.refresh()
