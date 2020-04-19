@@ -8,8 +8,8 @@ from configobj import ConfigObj
 from sys import byteorder
 from inspect import signature
 
-from lf2_envs.LF2_char import *
-from lf2_envs.winguiauto import winguiauto as winauto
+from .LF2_char import *
+from .winguiauto import winguiauto as winauto
 from collections import OrderedDict
 import time
 import pyautogui
