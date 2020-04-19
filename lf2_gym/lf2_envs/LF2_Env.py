@@ -1,4 +1,4 @@
-from lf2_gym.lf2_envs.LF2_Util import *
+from .LF2_Util import *
 from mss import mss
 from win32api import GetSystemMetrics
 import numpy as np
