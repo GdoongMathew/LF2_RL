@@ -4,7 +4,7 @@ import numpy as np
 
 class BaseModel:
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=20000, batch_size=32, update_freq=100, prioritized=False):
+                 memory_capacity=20000, batch_size=32, update_freq=100, prioritized=False, weight_path=None):
 
         self.action_n = action_n
         self.state_n = state_n
@@ -27,6 +27,7 @@ class BaseModel:
         else:
             self.memory = np.zeros((self.memory_capacity, (
                         self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] + self.state_n[1]) * 2 + 2))
+        self.weigh_path = weight_path
 
     def store_transition(self, s, a, r, s_):
         s = np.append(np.reshape(s[0], -1), s[1])  # [(4, 160, 380), 28] -> 4 * 160 * 380 + 28
@@ -39,6 +40,16 @@ class BaseModel:
             index = self.memory_counter % self.memory_capacity
             self.memory[index, :] = transition
         self.memory_counter += 1
+
+    @ staticmethod
+    def trans_obser(*args):
+        raise NotImplementedError
+
+    def save_weight(self, path):
+        raise NotImplementedError
+
+    def restore_weight(self, path):
+        raise NotImplementedError
 
     def learn(self):
         raise NotImplementedError

@@ -11,8 +11,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class Net(nn.Module):
-    def __init__(self, action_n, state_n, batch_size=32, lstm_hidden=50, dueling=False):
+    def __init__(self, action_n, state_n, batch_size=32, lstm_hidden=50, dueling=False, duel_type='avg'):
         super(Net, self).__init__()
+        self.duel_type = duel_type
 
         picture_n, feature_n = state_n[0], state_n[1]
         # input 4 x 240 x 500
@@ -87,7 +88,10 @@ class Net(nn.Module):
         if self.dueling:
             val = self.val(x)
             adv = self.adv(x)
-            x = val + adv - adv.mean(1).unsqueeze(1).expand(self.batch_size, self.action_n)
+            if self.duel_type == 'avg':
+                x = val + adv - adv.mean(1).unsqueeze(1).expand(self.batch_size, self.action_n)
+            # elif self.duel_type == 'max':
+            #     x = val + adv - adv.max(1).unsqueeze(1).expand(self.batch_size, self.action_n)
         else:
             x = self.out(x)
         return x
@@ -95,12 +99,13 @@ class Net(nn.Module):
 
 class DQN(BaseModel):
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=20000, batch_size=32, update_freq=100, lstm_hidden=50, dueling=False, prioritized=False):
-
+                 memory_capacity=20000, batch_size=32, update_freq=100, lstm_hidden=50, dueling=False,
+                 duel_type='max',
+                 prioritized=False, weight_path=None):
         super(DQN, self).__init__(action_n, state_n, env_shape, learning_rate=learning_rate, reward_decay=reward_decay,
                                   epsilon=epsilon,
                                   memory_capacity=memory_capacity, batch_size=batch_size, update_freq=update_freq,
-                                  prioritized=prioritized)
+                                  prioritized=prioritized, weight_path=weight_path)
 
         self.eval_net = Net(self.action_n, self.state_n, batch_size=self.batch_size, lstm_hidden=lstm_hidden,
                             dueling=dueling)
@@ -128,6 +133,19 @@ class DQN(BaseModel):
             action = action if self.env_shape == 0 else action.reshape(self.env_shape)
 
         return action
+
+    @staticmethod
+    def trans_obser(observation, feature, mode):
+        if mode == 'picture':
+            observation = np.transpose(observation, (2, 1, 0))
+            observation = np.transpose(observation, (0, 2, 1))
+        elif mode == 'feature':
+            observation = feature
+        elif mode == 'mix':
+            observation_ = np.transpose(observation, (2, 1, 0))
+            observation_ = np.transpose(observation_, (0, 2, 1))
+            observation = [observation_, feature]
+        return observation
 
     def learn(self):
         # target parameter update

@@ -4,21 +4,7 @@ import gym
 import lf2_gym
 import cv2
 
-from lf2_rl.Model_torch import DQN
-
-
-def trans_obser(observation, feature, mode):
-    if mode == 'picture':
-        observation = np.transpose(observation, (2, 1, 0))
-        observation = np.transpose(observation, (0, 2, 1))
-    elif mode == 'feature':
-        observation = feature
-    elif mode == 'mix':
-        observation_ = np.transpose(observation, (2, 1, 0))
-        observation_ = np.transpose(observation_, (0, 2, 1))
-        observation = [observation_, feature]
-    return observation
-
+from lf2_rl.Model_keras import DQN
 
 if __name__ == '__main__':
 
@@ -47,7 +33,7 @@ if __name__ == '__main__':
             pic = obs
         else:
             info = obs
-        observation = trans_obser(pic, info, mode)
+        observation = DQN.trans_obser(pic, info, mode)
 
         iter_cnt, total_reward = 0, 0
 
@@ -67,7 +53,7 @@ if __name__ == '__main__':
                 pic = obs
             else:
                 info = obs
-            observation_ = trans_obser(pic, info, mode)
+            observation_ = DQN.trans_obser(pic, info, mode)
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_)
             total_reward += reward
@@ -95,5 +81,5 @@ if __name__ == '__main__':
     print('Finished training')
     lf2_env.close()
     print('Saving model.')
-    agent.save_model()
+    agent.save_weight('./model')
 
