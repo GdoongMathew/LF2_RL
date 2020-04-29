@@ -1,4 +1,4 @@
-from .util import Memory
+from .util import Memory, LeafData
 import numpy as np
 
 
@@ -25,21 +25,22 @@ class BaseModel:
         if self.prioritized:
             self.memory = Memory(self.memory_capacity)
         else:
-            self.memory = np.zeros((self.memory_capacity, (
-                        self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] + self.state_n[1]) * 2 + 2))
+            self.memory = np.zeros(self.memory_capacity, dtype=LeafData)
         self.weigh_path = weight_path
 
     def store_transition(self, s, a, r, s_):
-        s = np.append(np.reshape(s[0], -1), s[1])  # [(4, 160, 380), 28] -> 4 * 160 * 380 + 28
-        s_ = np.append(np.reshape(s_[0], -1), s_[1])
-        transition = np.hstack((s, [a, r], s_))
+        leaf_data = LeafData(s, s_, a, r)
         if isinstance(self.memory, Memory):
-            self.memory.store(transition)
+            self.memory.store(leaf_data)
         else:
             # replace the old memory with new memory
             index = self.memory_counter % self.memory_capacity
-            self.memory[index, :] = transition
+            self.memory[index] = leaf_data
         self.memory_counter += 1
+
+    @ staticmethod
+    def data_process(data):
+        return data.astype('float32') / 255.
 
     @ staticmethod
     def trans_obser(*args):

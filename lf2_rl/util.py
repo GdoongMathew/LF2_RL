@@ -1,6 +1,19 @@
 import numpy as np
 
 
+class LeafData:
+    state_0 = None
+    state_1 = None
+    action = None
+    reward = None
+
+    def __init__(self, state_0, state_1, action, reward):
+        self.state_0 = state_0
+        self.state_1 = state_1
+        self.action = action
+        self.reward = reward
+
+
 class SumTree:
     def __init__(self, capacity):
         self.capacity = capacity
