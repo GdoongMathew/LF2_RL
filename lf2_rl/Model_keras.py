@@ -169,10 +169,6 @@ class DQN(BaseModel):
                               duel_type=duel_type).create_model()
         self.target_net.set_weights(self.eval_net.get_weights())
         self.prioritized = prioritized
-
-        self.memory = Memory(self.memory_capacity) if self.prioritized else \
-            np.zeros((self.memory_capacity, (self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] +
-                                             self.state_n[1]) * 2 + 2))
         self.compile(SGD(lr=0.001, momentum=0.9))
 
     @staticmethod
@@ -228,32 +224,23 @@ class DQN(BaseModel):
 
         else:
             sample_index = np.random.choice(self.memory_capacity, self.batch_size)
-            b_memory = self.memory[sample_index, :]
+            b_memory = self.memory[sample_index]
 
-        picture_idx = self.state_n[0][0] * self.state_n[0][1] * self.state_n[0][2]
-        feature_idx = self.state_n[1]
-        state_idx = picture_idx + feature_idx
+        b_picture = np.asarray([mem.state_0[0] for mem in b_memory])
+        b_picture = self.data_process(b_picture)
+        b_feature = np.asarray([mem.state_0[1] for mem in b_memory])
 
-        # print((self.batch_size, *self.state_n[:-1]))
-        b_picture = np.reshape(b_memory[:, :picture_idx], (self.batch_size,
-                                                           self.state_n[0][0],
-                                                           self.state_n[0][1],
-                                                           self.state_n[0][2]))
-        b_feature = b_memory[:, picture_idx: state_idx]
-        b_a = np.reshape(b_memory[:, state_idx: state_idx + 1], (self.batch_size, )).astype(np.int)
-        b_r = np.reshape(b_memory[:, state_idx + 1: state_idx + 2], (self.batch_size, ))
+        b_a = np.asarray([mem.action for mem in b_memory], dtype=np.int)
+        b_r = np.asarray([mem.reward for mem in b_memory])
 
-        b_picture_ = np.reshape(b_memory[:, -state_idx: -feature_idx], (self.batch_size,
-                                                                        self.state_n[0][0],
-                                                                        self.state_n[0][1],
-                                                                        self.state_n[0][2]))
-        b_feature_ = b_memory[:, -feature_idx:]
+        b_picture_ = np.asarray([mem.state_1[0] for mem in b_memory])
+        b_picture_ = self.data_process(b_picture_)
+        b_feature_ = np.asarray([mem.state_1[1] for mem in b_memory])
 
         b_s = [b_picture, b_feature]
         b_s_ = [b_picture_, b_feature_]
 
         if self.dueling:
-
             q_val = self.eval_net.predict_on_batch(b_s)
             actions = np.argmax(q_val, axis=1)
             target_q = self.target_net.predict_on_batch(b_s_)

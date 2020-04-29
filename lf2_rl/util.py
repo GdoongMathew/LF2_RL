@@ -18,10 +18,11 @@ class SumTree:
     def __init__(self, capacity):
         self.capacity = capacity
         self.tree = np.zeros(2 * capacity - 1)
-        self.data = np.zeros(capacity, dtype=object)
+        self.data = np.zeros(capacity, dtype=LeafData)
         self.data_pointer = 0
 
     def add(self, p, data):
+        assert isinstance(data, LeafData), 'Please transfer your data into LeafData type.'
         tree_idx = self.data_pointer + self.capacity - 1
         self.data[self.data_pointer] = data
         self.update(tree_idx, p)
@@ -79,7 +80,7 @@ class Memory:
     def sample(self, n):
         IS_weight = np.empty((n, 1))
         sample_idx = np.empty((n, ))
-        sample_mem = np.empty((n, self.tree.data[0].size))
+        sample_mem = np.empty((n, ), dtype=LeafData)
 
         segment = self.tree.total_p / n
         self.beta = np.min([1., self.beta + self.beta_increment_per_sampling])
@@ -91,7 +92,7 @@ class Memory:
             idx, p, data = self.tree.get_leaf(p_val)
 
             sample_idx[i] = idx
-            sample_mem[i, :] = data
+            sample_mem[i] = data
 
             prob = p / self.tree.total_p
             IS_weight[i, 0] = np.power(prob / min_prob, -self.beta)
