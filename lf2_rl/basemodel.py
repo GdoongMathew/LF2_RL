@@ -33,7 +33,7 @@ class BaseModel:
         s = np.append(np.reshape(s[0], -1), s[1])  # [(4, 160, 380), 28] -> 4 * 160 * 380 + 28
         s_ = np.append(np.reshape(s_[0], -1), s_[1])
         transition = np.hstack((s, [a, r], s_))
-        if self.prioritized:
+        if isinstance(self.memory, Memory):
             self.memory.store(transition)
         else:
             # replace the old memory with new memory

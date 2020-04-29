@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+# import torch
 import gym
 import lf2_gym
 import cv2
@@ -17,8 +17,8 @@ if __name__ == '__main__':
                lf2_env.observation_space['Info'].shape[0]]
 
     # obs = [obs['Game_Screen'], obs['Info']]
-    train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=20, batch_size=10, dueling=True, prioritized=True)
+    train_ep = 100000
+    agent = DQN(act_n, state_n, 0, memory_capacity=2000, batch_size=20, dueling=True, prioritized=True)
     records = []
     for ep in range(train_ep):
         obs = lf2_env.reset()
@@ -61,20 +61,11 @@ if __name__ == '__main__':
             if agent.memory_counter > agent.memory_capacity:
                 agent.learn()
                 print('RL learned.')
-
             if done:
                 total_reward = round(total_reward, 2)
                 records.append((iter_cnt, total_reward))
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
-
-                # if agent.memory_counter > agent.memory_capacity:
-                #     agent.learn()
-                #     print('Finish learning after one round.')
-
-                # if ep % 10 == 0:
-                #     print('Cache cleared.')
-                #     torch.cuda.empty_cache()
                 break
 
     print('-------------------------')

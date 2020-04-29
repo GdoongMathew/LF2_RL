@@ -12,11 +12,37 @@ from keras.layers import Dense
 from keras.layers import Flatten
 from keras.layers import Lambda
 from keras.layers import LSTM
+
+from keras.optimizers import Adam, SGD
 from keras import backend as K
+
 
 from .util import Memory
 from .basemodel import BaseModel
 import numpy as np
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.Session(config=config)
+K.set_session(sess)
+
+
+def mean_q(y_true, y_pred):
+    return K.mean(K.max(y_pred, axis=-1))
+
+
+def huber_loss(y_true, y_pred, clip_value):
+    assert clip_value > 0.
+
+    x = y_true - y_pred
+    squared_loss = 0.5 * K.square(x)
+    if np.isinf(clip_value):
+        return squared_loss
+
+    condition = K.abs(x) < clip_value
+    linear_loss = clip_value * (K.abs(x) - 0.5 * clip_value)
+
+    return tf.where(condition, squared_loss, linear_loss)
 
 
 def SepConv_BN(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activation=False, epsilon=1e-3):
@@ -60,13 +86,14 @@ def SepConv_BN(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activa
 
 
 class Net:
-    def __init__(self, action_n, state_n, batch_size=32, lstm_hidden=50, dueling=False, duel_type='max'):
+    def __init__(self, action_n, state_n, optimizer, batch_size=32, lstm_hidden=50, dueling=False, duel_type='max'):
         self.action_n = action_n
         self.batch_size = batch_size
         self.picture_n, self.feature_n = state_n
         self.lstm_hidden = lstm_hidden
         self.dueling = dueling
         self.duel_type = duel_type
+        self.optimizer = optimizer
 
     def create_model(self):
         img_input = Input(shape=self.picture_n)
@@ -107,9 +134,11 @@ class Net:
                 raise AssertionError('duel_type must be either avg or max.')
         else:
             # directly output q value
-            model = Dense(self.action_n)(model)
+            model = Dense(self.action_n, activation='linear')(model)
 
         model = Model(inputs=[img_input, fea_input], outputs=model)
+        # model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
+        model.compile(loss='mse', optimizer=self.optimizer, metrics=['accuracy'])
         return model
 
 
@@ -126,6 +155,7 @@ class DQN(BaseModel):
         self.dueling = dueling
 
         self.eval_net = Net(action_n, state_n,
+                            SGD(lr=0.001, momentum=0.9),
                             batch_size=batch_size,
                             lstm_hidden=lstm_hidden,
                             duel_type=duel_type).create_model()
@@ -133,6 +163,7 @@ class DQN(BaseModel):
             self.eval_net.load_weights(self.weigh_path)
         self.eval_net.summary()
         self.target_net = Net(action_n, state_n,
+                              SGD(lr=0.001, momentum=0.9),
                               batch_size=batch_size,
                               lstm_hidden=lstm_hidden,
                               duel_type=duel_type).create_model()
@@ -140,8 +171,9 @@ class DQN(BaseModel):
         self.prioritized = prioritized
 
         self.memory = Memory(self.memory_capacity) if self.prioritized else \
-            np.zero((self.memory_capacity, (self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] +
-                                            self.state_n[1]) * 2 + 2))
+            np.zeros((self.memory_capacity, (self.state_n[0][2] * self.state_n[0][0] * self.state_n[0][1] +
+                                             self.state_n[1]) * 2 + 2))
+        self.compile(SGD(lr=0.001, momentum=0.9))
 
     @staticmethod
     def trans_obser(observation, feature, mode):
@@ -154,31 +186,106 @@ class DQN(BaseModel):
         return observation
 
     def choose_action(self, x):
-        print(x[1].shape)
         if np.random.uniform() < self.epsilon:
-            action_val = self.target_net.predict_on_batch([[x[0]], x[1]])
-            action = np.argmax(action_val, axis=-1)
+            action_val = self.target_net.predict_on_batch([[x[0]], [x[1]]])
+            action = np.argmax(action_val, axis=-1)[0]
 
         else:
             action = np.random.randint(0, self.action_n)
             action = action if self.env_shape == 0 else action.reshape(self.env_shape)
         return action
 
+    def compile(self, optimizer, metrics=[]):
+        def clipped_masked_error(args):
+            _true, _pred, _mask = args
+            loss = huber_loss(_true, _pred, np.inf)
+            loss *= mask
+            return K.sum(loss, axis=-1)
+
+        metrics += [mean_q]
+
+        y_pred = self.eval_net.output
+        y_true = Input(name='y_true', shape=(self.action_n, ))
+        mask = Input(name='mask', shape=(self.action_n, ))
+        loss_out = Lambda(clipped_masked_error, output_shape=(1, ), name='loss')([y_true, y_pred, mask])
+        ins = [self.eval_net.input] if type(self.eval_net.input) is not list else self.eval_net.input
+        trainable_model = Model(inputs=ins + [y_true, mask], outputs=[loss_out, y_pred])
+        assert len(trainable_model.output_names) == 2
+        combined_metrics = {trainable_model.output_names[1]: metrics}
+        losses = [
+            lambda y_true, y_pred: y_pred,
+            lambda y_true, y_pred: K.zeros_like(y_pred)
+        ]
+
+        trainable_model.compile(optimizer=optimizer, loss=losses, metrics=combined_metrics)
+        self.trainable_model = trainable_model
+
     def learn(self):
         # sample batch transitions
-        if self.prioritized:
+        if isinstance(self.memory, Memory):
+            # is prioritized
             tree_idx, b_memory, is_weight = self.memory.sample(self.batch_size)
+
         else:
             sample_index = np.random.choice(self.memory_capacity, self.batch_size)
             b_memory = self.memory[sample_index, :]
 
+        picture_idx = self.state_n[0][0] * self.state_n[0][1] * self.state_n[0][2]
+        feature_idx = self.state_n[1]
+        state_idx = picture_idx + feature_idx
+
+        # print((self.batch_size, *self.state_n[:-1]))
+        b_picture = np.reshape(b_memory[:, :picture_idx], (self.batch_size,
+                                                           self.state_n[0][0],
+                                                           self.state_n[0][1],
+                                                           self.state_n[0][2]))
+        b_feature = b_memory[:, picture_idx: state_idx]
+        b_a = np.reshape(b_memory[:, state_idx: state_idx + 1], (self.batch_size, )).astype(np.int)
+        b_r = np.reshape(b_memory[:, state_idx + 1: state_idx + 2], (self.batch_size, ))
+
+        b_picture_ = np.reshape(b_memory[:, -state_idx: -feature_idx], (self.batch_size,
+                                                                        self.state_n[0][0],
+                                                                        self.state_n[0][1],
+                                                                        self.state_n[0][2]))
+        b_feature_ = b_memory[:, -feature_idx:]
+
+        b_s = [b_picture, b_feature]
+        b_s_ = [b_picture_, b_feature_]
+
+        if self.dueling:
+
+            q_val = self.eval_net.predict_on_batch(b_s)
+            actions = np.argmax(q_val, axis=1)
+            target_q = self.target_net.predict_on_batch(b_s_)
+            q_batch = target_q[range(self.batch_size), actions]
+        else:
+            target_q = self.target_net.predict_on_batch(b_s_)
+            q_batch = np.max(target_q, axis=1).flatten()
+
+        targets = np.zeros((self.batch_size, self.action_n))
+        dummy_targets = np.zeros((self.batch_size, ))
+        masks = np.zeros((self.batch_size, self.action_n))
+
+        discounted_reward = self.gamma * q_batch
+        assert discounted_reward.shape == b_r.shape
+        rs = b_r + discounted_reward
+
+        for idx, (target, mask, R, action) in enumerate(zip(targets, masks, rs, b_a)):
+            target[action] = R
+            mask[action] = 1.0  # calculate loss of this action
+            dummy_targets[idx] = R
+
+        ins = [b_s] if type(self.eval_net.input) is not list else b_s
+        metrics = self.trainable_model.train_on_batch(ins + [targets, masks], [dummy_targets, targets])
+        print(f'metrics: {metrics}')
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.step_counter += 1
 
-
-    def save_weight(self, path):
-        pass
+    def save_weight(self, path=None):
+        if isinstance(path, type(None)):
+            path = '/Keras_Save/'
+        self.eval_net.save(path)
 
     def restore_weight(self, path):
         self.eval_net.load_weights(path)

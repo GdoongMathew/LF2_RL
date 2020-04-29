@@ -178,6 +178,7 @@ class DQN(BaseModel):
         # q_eval w.r.t the action in experience
         q_eval = self.eval_net(b_s).gather(1, b_a)  # shape (batch, 1)
         q_next = self.target_net(b_s_).detach()  # detach from graph, don't backpropagate
+
         q_target = b_r + self.gamma * q_next.max(1)[0].view(self.batch_size, 1)  # shape (batch, 1)
         loss = self.loss_func(q_eval, q_target)
 

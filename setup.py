@@ -8,4 +8,5 @@ setup(name='lf2_gym',
                         'opencv-python>=3.3.1,<4.0.0',
                         'numpy',
                         'pymem',
-                        'configobj'])
+                        'configobj',
+                        'pywin32'])
