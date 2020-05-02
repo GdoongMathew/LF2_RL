@@ -3,12 +3,12 @@ import numpy as np
 
 
 class BaseModel:
-    def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
+    def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, momentum=0.9, reward_decay=0.9, epsilon=0.5,
                  memory_capacity=20000, batch_size=32, update_freq=100, prioritized=False, weight_path=None):
-
         self.action_n = action_n
         self.state_n = state_n
         self.lr = learning_rate
+        self.momentum = momentum
         self.gamma = reward_decay
         self.env_shape = env_shape
         self.epsilon = epsilon
@@ -28,7 +28,12 @@ class BaseModel:
             self.memory = np.zeros(self.memory_capacity, dtype=LeafData)
         self.weigh_path = weight_path
 
+    @ staticmethod
+    def reward_modify(r):
+        return r
+
     def store_transition(self, s, a, r, s_):
+        r = self.reward_modify(r)
         leaf_data = LeafData(s, s_, a, r)
         if isinstance(self.memory, Memory):
             self.memory.store(leaf_data)

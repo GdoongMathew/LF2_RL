@@ -113,23 +113,24 @@ class Net:
 
         # Flatten before Dense layers
         model = Flatten()(model)
-
         model = Dense(512, activation=tf.nn.relu)(model)
-
         model = Concatenate()([model, fea_input])
         model = Dense(100, activation=tf.nn.relu)(model)
 
         # model = LSTM(self.lstm_hidden)(model)
 
         if self.dueling:
-            adv = Dense(self.action_n)(model)
-            val = Dense(1)(model)
+            model = Dense(self.action_n + 1)(model)
 
             # q_val = value + advantages - avg/max(advantages)
             if self.duel_type == 'avg':
-                model = Lambda(val + (adv - K.mean(adv)))(model)
+                model = Lambda(
+                    lambda a: K.expand_dims(a[:, 0], -1) + a[:, 1:] - K.mean(a[:, 1:], axis=1, keepdims=True),
+                    output_shape=(self.action_n,))(model)
             elif self.duel_type == 'max':
-                model = Lambda(val + (adv - K.max(adv)))(model)
+                model = Lambda(
+                    lambda a: K.expand_dims(a[:, 0], -1) + a[:, 1:] - K.max(a[:, 1:], axis=1, keepdims=True),
+                    output_shape=(self.action_n,))(model)
             else:
                 raise AssertionError('duel_type must be either avg or max.')
         else:
@@ -143,33 +144,30 @@ class Net:
 
 
 class DQN(BaseModel):
-    def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=20000, batch_size=32, update_freq=100, lstm_hidden=50, dueling=False,
-                 duel_type='max',
-                 prioritized=False, weight_path=None):
-        super(DQN, self).__init__(action_n, state_n, env_shape, learning_rate=learning_rate, reward_decay=reward_decay,
-                                  epsilon=epsilon,
-                                  memory_capacity=memory_capacity, batch_size=batch_size, update_freq=update_freq,
-                                  prioritized=prioritized, weight_path=weight_path)
+    def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
+                 weight_path=None, lstm_hidden=50, **kwargs):
+        super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
         self.dueling = dueling
 
-        self.eval_net = Net(action_n, state_n,
-                            SGD(lr=0.001, momentum=0.9),
-                            batch_size=batch_size,
+        self.eval_net = Net(self.action_n, self.state_n,
+                            SGD(lr=self.lr, momentum=self.momentum),
+                            batch_size=self.batch_size,
                             lstm_hidden=lstm_hidden,
+                            dueling=self.dueling,
                             duel_type=duel_type).create_model()
-        if not isinstance(weight_path, type(None)):
+        if not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
             self.eval_net.load_weights(self.weigh_path)
         self.eval_net.summary()
-        self.target_net = Net(action_n, state_n,
-                              SGD(lr=0.001, momentum=0.9),
-                              batch_size=batch_size,
+        self.target_net = Net(self.action_n, self.state_n,
+                              SGD(lr=self.lr, momentum=self.momentum),
+                              batch_size=self.batch_size,
                               lstm_hidden=lstm_hidden,
+                              dueling=self.dueling,
                               duel_type=duel_type).create_model()
         self.target_net.set_weights(self.eval_net.get_weights())
         self.prioritized = prioritized
-        self.compile(SGD(lr=0.001, momentum=0.9))
+        self.compile(SGD(lr=self.lr, momentum=self.momentum))
 
     @staticmethod
     def trans_obser(observation, feature, mode):
@@ -226,16 +224,28 @@ class DQN(BaseModel):
             sample_index = np.random.choice(self.memory_capacity, self.batch_size)
             b_memory = self.memory[sample_index]
 
-        b_picture = np.asarray([mem.state_0[0] for mem in b_memory])
-        b_picture = self.data_process(b_picture)
-        b_feature = np.asarray([mem.state_0[1] for mem in b_memory])
+        b_picture = []
+        b_feature = []
+        b_a = []
+        b_r = []
+        b_picture_ = []
+        b_feature_ = []
 
-        b_a = np.asarray([mem.action for mem in b_memory], dtype=np.int)
-        b_r = np.asarray([mem.reward for mem in b_memory])
+        for mem in b_memory:
+            b_picture.append(mem.state_0[0])
+            b_feature.append(mem.state_0[1])
+            b_a.append(mem.action)
+            b_r.append(mem.reward)
+            b_picture_.append(mem.state_1[0])
+            b_feature_.append(mem.state_1[1])
 
-        b_picture_ = np.asarray([mem.state_1[0] for mem in b_memory])
-        b_picture_ = self.data_process(b_picture_)
-        b_feature_ = np.asarray([mem.state_1[1] for mem in b_memory])
+        b_picture = self.data_process(np.asarray(b_picture))
+        b_feature = np.asarray(b_feature)
+        b_picture_ = self.data_process(np.asarray(b_picture_))
+        b_feature_ = np.asarray(b_feature_)
+
+        b_a = np.asarray(b_a)
+        b_r = np.asarray(b_r)
 
         b_s = [b_picture, b_feature]
         b_s_ = [b_picture_, b_feature_]
@@ -268,6 +278,10 @@ class DQN(BaseModel):
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.step_counter += 1
+
+    @ staticmethod
+    def reward_modify(r):
+        return r / 180.
 
     def save_weight(self, path=None):
         if isinstance(path, type(None)):
