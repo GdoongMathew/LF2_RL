@@ -4,7 +4,8 @@ import numpy as np
 
 class BaseModel:
     def __init__(self, action_n, state_n, env_shape, learning_rate=0.01, momentum=0.9, reward_decay=0.9, epsilon=0.5,
-                 memory_capacity=20000, batch_size=32, update_freq=100, prioritized=False, weight_path=None):
+                 memory_capacity=20000, batch_size=32, update_freq=100, save_freq=500, prioritized=False,
+                 weight_path=None):
         self.action_n = action_n
         self.state_n = state_n
         self.lr = learning_rate
@@ -15,6 +16,7 @@ class BaseModel:
         self.memory_capacity = memory_capacity
         self.batch_size = batch_size
         self.update_freq = update_freq
+        self.save_freq = save_freq
 
         self.step_counter = 0
         self.memory_counter = 0
