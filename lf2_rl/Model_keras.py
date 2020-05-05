@@ -20,6 +20,7 @@ from keras import backend as K
 from .util import Memory
 from .basemodel import BaseModel
 import numpy as np
+import os
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -279,17 +280,28 @@ class DQN(BaseModel):
             self.target_net.set_weights(self.eval_net.get_weights())
         self.step_counter += 1
 
+        if self.step_counter % self.save_freq:
+            self.save_weight()
+
     @ staticmethod
     def reward_modify(r):
-        return r / 180.
+        return r / 1.
 
-    def save_weight(self, path=None):
+    def save_weight(self, path=None, overwrite=True):
         if isinstance(path, type(None)):
-            path = '/Keras_Save/'
-        self.eval_net.save(path)
+            path = f'./Keras_Save'
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-    def restore_weight(self, path):
-        self.eval_net.load_weights(path)
+        model_file = os.path.join(path, 'keras_dqn.h5')
+        self.eval_net.save_weights(model_file, overwrite=overwrite)
+
+    def restore_weight(self, path=None):
+        if isinstance(path, type(None)):
+            path = f'./Keras_Save'
+        model_file = os.path.join(path, 'keras_dqn.h5')
+        self.eval_net.load_weights(model_file)
+        self.target_net.set_weights(self.eval_net.get_weights())
 
 
 if __name__ == '__main__':
