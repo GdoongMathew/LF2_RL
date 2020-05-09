@@ -83,6 +83,7 @@ class Lf2Env(gym.Env):
         self.action_space = spaces.Discrete(len(self.get_action_space()))
         self.mode = mode
         self.reward = 0
+        self.bot_attack = 0
         while True:
             if len(self.frames) != 0:
                 # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
@@ -245,6 +246,7 @@ class Lf2Env(gym.Env):
         self.frames.clear()
         time.sleep(self.reset_skip_sec)
         self.reward = 0
+        self.bot_attack = 0
         print('Env reset.')
         return self.get_state()
 
@@ -301,6 +303,11 @@ class Lf2Env(gym.Env):
         # death penalty
         if not self.my_player.is_alive:
             self.reward -= 50
+
+        # increase reward when increasing attacks.
+        if self.my_player.Attack != self.bot_attack:
+            self.reward += (self.my_player.Attack - self.bot_attack) * 10
+            self.bot_attack = self.my_player.Attack
 
         # Most simple reward?
         return self.reward

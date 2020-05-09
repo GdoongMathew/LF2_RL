@@ -1,30 +1,15 @@
 import numpy as np
-import torch
+# import torch
 import gym
-import time
 import lf2_gym
 import cv2
 
-from lf2_rl.Model import DQN
-
-
-def trans_obser(observation, feature, mode):
-    if mode == 'picture':
-        observation = np.transpose(observation, (2, 1, 0))
-        observation = np.transpose(observation, (0, 2, 1))
-    elif mode == 'feature':
-        observation = feature
-    elif mode == 'mix':
-        observation_ = np.transpose(observation, (2, 1, 0))
-        observation_ = np.transpose(observation_, (0, 2, 1))
-        observation = [observation_, feature]
-    return observation
-
+from lf2_rl.Model_keras import DQN
 
 if __name__ == '__main__':
 
     mode = 'mix'
-    karg = dict(frame_stack=2, frame_skip=1, reset_skip_sec=2, mode=mode)
+    karg = dict(frame_stack=3, frame_skip=1, reset_skip_sec=2, mode=mode)
     lf2_env = gym.make('LittleFighter2-v0', **karg)
 
     act_n = lf2_env.action_space.n
@@ -32,10 +17,20 @@ if __name__ == '__main__':
                lf2_env.observation_space['Info'].shape[0]]
 
     # obs = [obs['Game_Screen'], obs['Info']]
-    train_ep = 10000
-    agent = DQN(act_n, state_n, 0, memory_capacity=3000, batch_size=8, dueling=True, prioritized=False)
+    train_ep = 100000
+    agent = DQN(act_n, state_n, 0,
+                memory_capacity=60000,
+                batch_size=50,
+                learning_rate=0.00001,
+                momentum=0.8,
+                save_freq=100,
+                dueling=True,
+                prioritized=True)
     records = []
     for ep in range(train_ep):
+
+        # pass episode to tensorboard.
+        agent.tb.step = ep
         obs = lf2_env.reset()
 
         pic = None
@@ -48,7 +43,7 @@ if __name__ == '__main__':
             pic = obs
         else:
             info = obs
-        observation = trans_obser(pic, info, mode)
+        observation = DQN.trans_obser(pic, info, mode)
 
         iter_cnt, total_reward = 0, 0
 
@@ -68,7 +63,7 @@ if __name__ == '__main__':
                 pic = obs
             else:
                 info = obs
-            observation_ = trans_obser(pic, info, mode)
+            observation_ = DQN.trans_obser(pic, info, mode)
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_)
             total_reward += reward
@@ -80,17 +75,14 @@ if __name__ == '__main__':
                                                                                           total_reward))
 
                 if agent.memory_counter > agent.memory_capacity:
-                    agent.learn()
-                    print('Finish learning after one round.')
-
-                if ep % 10 == 0:
-                    print('Cache cleared.')
-                    torch.cuda.empty_cache()
+                    for i in range(15):
+                        agent.learn()
+                    print('RL learned 15 times.')
                 break
 
     print('-------------------------')
     print('Finished training')
     lf2_env.close()
     print('Saving model.')
-    agent.save_model()
+    agent.save_weight('./model')
 
