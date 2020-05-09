@@ -17,7 +17,7 @@ from keras.optimizers import Adam, SGD
 from keras import backend as K
 
 
-from .util import Memory
+from .util import Memory, ModifiedTensorBoard
 from .basemodel import BaseModel
 import numpy as np
 import os
@@ -146,7 +146,7 @@ class Net:
 
 class DQN(BaseModel):
     def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
-                 weight_path=None, lstm_hidden=50, **kwargs):
+                 weight_path=f'./Keras_Save/keras_dqn.h5', lstm_hidden=50, **kwargs):
         super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
         self.dueling = dueling
@@ -157,8 +157,6 @@ class DQN(BaseModel):
                             lstm_hidden=lstm_hidden,
                             dueling=self.dueling,
                             duel_type=duel_type).create_model()
-        if not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
-            self.eval_net.load_weights(self.weigh_path)
         self.eval_net.summary()
         self.target_net = Net(self.action_n, self.state_n,
                               SGD(lr=self.lr, momentum=self.momentum),
@@ -167,7 +165,18 @@ class DQN(BaseModel):
                               dueling=self.dueling,
                               duel_type=duel_type).create_model()
         self.target_net.set_weights(self.eval_net.get_weights())
+        if isinstance(weight_path, type(None)):
+            self.weight_path = f'./Keras_Save/keras_dqn.h5'
+        elif not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
+            self.weight_path = weight_path
+            self.restore_weight(self.weight_path)
+
         self.prioritized = prioritized
+        tb_path = os.path.join(os.path.dirname(self.weight_path), 'Tensorboard')
+        if not os.path.exists(tb_path):
+            os.mkdir(tb_path)
+        self.tb = ModifiedTensorBoard(log_dir=tb_path)
+
         self.compile(SGD(lr=self.lr, momentum=self.momentum))
 
     @staticmethod
@@ -275,32 +284,27 @@ class DQN(BaseModel):
 
         ins = [b_s] if type(self.eval_net.input) is not list else b_s
         metrics = self.trainable_model.train_on_batch(ins + [targets, masks], [dummy_targets, targets])
-        print(f'metrics: {metrics}')
+        self.trainable_model.fit(ins + [targets, masks], [dummy_targets, targets],
+                                 batch_size=self.batch_size,
+                                 verbose=True,
+                                 callbacks=[self.tb])
+        # print(f'metrics: {metrics}')
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.step_counter += 1
 
         if self.step_counter % self.save_freq:
-            self.save_weight()
+            self.save_weight(self.weight_path)
 
     @ staticmethod
     def reward_modify(r):
         return r / 1.
 
     def save_weight(self, path=None, overwrite=True):
-        if isinstance(path, type(None)):
-            path = f'./Keras_Save'
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        model_file = os.path.join(path, 'keras_dqn.h5')
-        self.eval_net.save_weights(model_file, overwrite=overwrite)
+        self.eval_net.save_weights(path, overwrite=overwrite)
 
     def restore_weight(self, path=None):
-        if isinstance(path, type(None)):
-            path = f'./Keras_Save'
-        model_file = os.path.join(path, 'keras_dqn.h5')
-        self.eval_net.load_weights(model_file)
+        self.eval_net.load_weights(path)
         self.target_net.set_weights(self.eval_net.get_weights())
 
 
