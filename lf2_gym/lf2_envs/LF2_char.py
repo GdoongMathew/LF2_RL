@@ -204,7 +204,7 @@ class Firen(Template):
 
     def sp_attack4(self):
         # Explosion
-        return self.down() + self.up() + self.jump()
+        return self.defend() + self.up() + self.jump()
 
 
 class Freeze(Template):
