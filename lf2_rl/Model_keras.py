@@ -118,8 +118,6 @@ class Net:
         model = Concatenate()([model, fea_input])
         model = Dense(100, activation=tf.nn.relu)(model)
 
-        # model = LSTM(self.lstm_hidden)(model)
-
         if self.dueling:
             model = Dense(self.action_n + 1)(model)
 
@@ -169,7 +167,9 @@ class DQN(BaseModel):
             self.weight_path = f'./Keras_Save/keras_dqn.h5'
         elif not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
             self.weight_path = weight_path
-            self.restore_weight(self.weight_path)
+            if os.path.isfile(self.weight_path):
+                print(f'Restoring Weight from {self.weight_path}')
+                self.restore_weight(self.weight_path)
 
         self.prioritized = prioritized
         tb_path = os.path.join(os.path.dirname(self.weight_path), 'Tensorboard')
@@ -178,6 +178,7 @@ class DQN(BaseModel):
         self.tb = ModifiedTensorBoard(log_dir=tb_path)
 
         self.compile(SGD(lr=self.lr, momentum=self.momentum))
+        self.tb.set_model(self.eval_net)
 
     @staticmethod
     def trans_obser(observation, feature, mode):
@@ -190,7 +191,7 @@ class DQN(BaseModel):
         return observation
 
     def choose_action(self, x):
-        if np.random.uniform() < self.epsilon:
+        if np.random.uniform() > self.policy():
             action_val = self.target_net.predict_on_batch([[x[0]], [x[1]]])
             action = np.argmax(action_val, axis=-1)[0]
 
@@ -198,6 +199,12 @@ class DQN(BaseModel):
             action = np.random.randint(0, self.action_n)
             action = action if self.env_shape == 0 else action.reshape(self.env_shape)
         return action
+
+    def policy(self):
+        p = self.epsilon - self.step_counter // 5000
+        if p <= 0.1:
+            p = 0.15
+        return p
 
     def compile(self, optimizer, metrics=[]):
         def clipped_masked_error(args):

@@ -118,10 +118,6 @@ class ModifiedTensorBoard(TensorBoard):
         self.step = 1
         self.writer = tf.summary.FileWriter(self.log_dir)
 
-    # Overriding this method to stop creating default log writer
-    def set_model(self, model):
-        pass
-
     # Overrided, saves logs with our step number
     # (otherwise every .fit() will start writing from 0th step)
     def on_epoch_end(self, epoch, logs=None):

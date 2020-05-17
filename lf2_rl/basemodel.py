@@ -28,11 +28,14 @@ class BaseModel:
             self.memory = Memory(self.memory_capacity)
         else:
             self.memory = np.zeros(self.memory_capacity, dtype=LeafData)
-        self.weigh_path = weight_path
+        self.weight_path = weight_path
 
     @ staticmethod
     def reward_modify(r):
         return r
+
+    def policy(self):
+        return self.epsilon
 
     def store_transition(self, s, a, r, s_):
         r = self.reward_modify(r)

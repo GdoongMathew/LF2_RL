@@ -87,8 +87,8 @@ class Lf2Env(gym.Env):
         while True:
             if len(self.frames) != 0:
                 # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-                low = [0, 0, 0] + [0, 0, -np.inf] * num_players
-                high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1] + [np.inf, np.inf, 0] * num_players
+                low = [0, 0, 0, 0, 0, -np.inf] * num_players
+                high = [self.my_player.Mp_Max, self.my_player.Hp_Max, 1, np.inf, np.inf, 0] * num_players
                 info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
 
                 if self.mode == 'mix':
@@ -113,9 +113,11 @@ class Lf2Env(gym.Env):
             p_c = Player(self.game_hwnd, i, com=True)
             p_h = Player(self.game_hwnd, i)
             if p_c.is_active:
+                # computer player
                 self.players[i] = p_c
                 num_player += 1
             elif p_h.is_active:
+                # human player
                 self.players[i] = p_h
                 num_player += 1
             else:
@@ -139,7 +141,8 @@ class Lf2Env(gym.Env):
                 if self.players[i] is None or i == self.my_player_id:
                     continue
 
-                info += [self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
+                info += [self.players[i].Mp, self.players[i].Hp, int(self.players[i].facing_bool),
+                         self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
 
             ob = dict(Game_Screen=np.stack(self.frames, axis=2),
                       Info=np.array(info))
@@ -151,8 +154,8 @@ class Lf2Env(gym.Env):
             for i in self.players:
                 if self.players[i] is None or i == self.my_player_id:
                     continue
-
-                info += [self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
+                info += [self.players[i].Mp, self.players[i].Hp, int(self.players[i].facing_bool),
+                         self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
 
             ob = np.array(info)
 

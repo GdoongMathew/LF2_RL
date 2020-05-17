@@ -20,10 +20,11 @@ if __name__ == '__main__':
     train_ep = 100000
     agent = DQN(act_n, state_n, 0,
                 memory_capacity=60000,
-                batch_size=50,
+                batch_size=60,
                 learning_rate=0.00001,
                 momentum=0.8,
-                save_freq=100,
+                save_freq=200,
+                epsilon=0.85,
                 dueling=True,
                 prioritized=True)
     records = []
