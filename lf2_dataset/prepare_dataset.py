@@ -43,15 +43,18 @@ class DataConverter:
         now = datetime.now()
         file_name = f"{self.filename}_{self.file_num}_{now.strftime('%Y_%m_%d_%H_%M')}"
         size = imgs[0].shape[:2]
+        print(size)
         out = cv2.VideoWriter(os.path.join(self.path, f'{file_name}.{self.video_type}'),
-                              cv2.VideoWriter_fourcc(*'mp4v'), 20, (size[1], size[0]))
+                              cv2.VideoWriter_fourcc(*'MP4V'), 30, (size[0], size[1]))
         for im in imgs:
             out.write(im)
+
+        print('Video wrote.')
         out.release()
 
         with open(os.path.join(self.path, f'{file_name}.json'), 'w') as file:
             json.dump(json_item, file)
-
+        print('State json wrote.')
 
 mode = 'info'
 karg = dict(frame_stack=1, frame_skip=0, reset_skip_sec=2, mode=mode)

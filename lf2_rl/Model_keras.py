@@ -1,3 +1,4 @@
+# referenced from https://github.com/keras-rl/keras-rl
 import tensorflow as tf
 from keras.models import Model
 from keras import layers
@@ -86,6 +87,66 @@ def SepConv_BN(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activa
     return x
 
 
+def _conv2d_same(x, filters, prefix, stride=1, kernel_size=3, rate=1):
+    """Implements right 'same' padding for even kernel sizes
+        Without this there is a 1 pixel drift when stride = 2
+        Args:
+            x: input tensor
+            filters: num of filters in pointwise convolution
+            prefix: prefix before name
+            stride: stride at depthwise conv
+            kernel_size: kernel size for depthwise convolution
+            rate: atrous rate for depthwise convolution
+    """
+    if stride == 1:
+        return Conv2D(filters,
+                      (kernel_size, kernel_size),
+                      strides=(stride, stride),
+                      padding='same', use_bias=False,
+                      dilation_rate=(rate, rate),
+                      name=prefix)(x)
+    else:
+        kernel_size_effective = kernel_size + (kernel_size - 1) * (rate - 1)
+        pad_total = kernel_size_effective - 1
+        pad_beg = pad_total // 2
+        pad_end = pad_total - pad_beg
+        x = ZeroPadding2D((pad_beg, pad_end))(x)
+        return Conv2D(filters,
+                      (kernel_size, kernel_size),
+                      strides=(stride, stride),
+                      padding='valid', use_bias=False,
+                      dilation_rate=(rate, rate),
+                      name=prefix)(x)
+
+
+def xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
+                   rate=1, depth_activation=False, return_skip=False):
+    residual = inputs
+    for i in range(3):
+        residual = SepConv_BN(residual,
+                              depth_list[i],
+                              prefix + '_separable_conv{}'.format(i + 1),
+                              stride=stride if i == 2 else 1,
+                              rate=rate,
+                              depth_activation=depth_activation)
+        if i == 1:
+            skip = residual
+    if skip_connection_type == 'conv':
+        shortcut = _conv2d_same(inputs, depth_list[-1], prefix + '_shortcut',
+                                kernel_size=1,
+                                stride=stride)
+        shortcut = BatchNormalization(name=prefix + '_shortcut_BN')(shortcut)
+        outputs = layers.add([residual, shortcut])
+    elif skip_connection_type == 'sum':
+        outputs = layers.add([residual, inputs])
+    elif skip_connection_type == 'none':
+        outputs = residual
+    if return_skip:
+        return outputs, skip
+    else:
+        return outputs
+
+
 class Net:
     def __init__(self, action_n, state_n, optimizer, batch_size=32, lstm_hidden=50, dueling=False, duel_type='max'):
         self.action_n = action_n
@@ -100,17 +161,33 @@ class Net:
         img_input = Input(shape=self.picture_n)
         fea_input = Input(shape=(self.feature_n, ))
 
-        model = Conv2D(32, (8, 8), strides=4)(img_input)
+        model = Conv2D(32, (3, 3), strides=2)(img_input)
         model = BatchNormalization()(model)
         model = Activation('relu')(model)
 
-        model = Conv2D(64, (2, 2), strides=5)(model)
+        model = Conv2D(64, (2, 2), strides=2)(model)
         model = BatchNormalization()(model)
-        model = Activation('relu')(model)
+        # model = Activation('relu')(model)
 
-        model = Conv2D(64, (5, 5), strides=1)(model)
-        model = BatchNormalization()(model)
-        model = Activation('relu')(model)
+        model = xception_block(model, [64, 64, 64], 'entry_flow_block2',
+                               skip_connection_type='conv', stride=2,
+                               depth_activation=False)
+
+        model = xception_block(model, [128, 128, 128], 'entry_flow_block1',
+                               skip_connection_type='conv', stride=2,
+                               depth_activation=False)
+
+        model = xception_block(model, [182, 182, 182], 'entry_flow_block3',
+                               skip_connection_type='conv', stride=2,
+                               depth_activation=False)
+
+        model = xception_block(model, [182, 256, 256], 'exit_flow_block1',
+                               skip_connection_type='conv', stride=1, rate=4,
+                               depth_activation=True)
+
+        model = xception_block(model, [384, 384, 512], 'exit_flow_block2',
+                               skip_connection_type='none', stride=1, rate=4,
+                               depth_activation=True)
 
         # Flatten before Dense layers
         model = Flatten()(model)
@@ -201,7 +278,7 @@ class DQN(BaseModel):
         return action
 
     def policy(self):
-        p = self.epsilon - self.step_counter // 5000
+        p = self.epsilon - self.step_counter // 7000
         if p <= 0.1:
             p = 0.15
         return p
@@ -267,13 +344,12 @@ class DQN(BaseModel):
         b_s = [b_picture, b_feature]
         b_s_ = [b_picture_, b_feature_]
 
+        target_q = self.target_net.predict_on_batch(b_s_)
         if self.dueling:
             q_val = self.eval_net.predict_on_batch(b_s)
             actions = np.argmax(q_val, axis=1)
-            target_q = self.target_net.predict_on_batch(b_s_)
             q_batch = target_q[range(self.batch_size), actions]
         else:
-            target_q = self.target_net.predict_on_batch(b_s_)
             q_batch = np.max(target_q, axis=1).flatten()
 
         targets = np.zeros((self.batch_size, self.action_n))
@@ -291,6 +367,7 @@ class DQN(BaseModel):
 
         ins = [b_s] if type(self.eval_net.input) is not list else b_s
         metrics = self.trainable_model.train_on_batch(ins + [targets, masks], [dummy_targets, targets])
+        metrics = [metric for idx, metric in enumerate(metrics) if idx not in (1, 2)]
         self.trainable_model.fit(ins + [targets, masks], [dummy_targets, targets],
                                  batch_size=self.batch_size,
                                  verbose=True,
@@ -299,6 +376,7 @@ class DQN(BaseModel):
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.step_counter += 1
+        self.tb.step += 1
 
         if self.step_counter % self.save_freq:
             self.save_weight(self.weight_path)

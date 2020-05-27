@@ -18,6 +18,11 @@ import gym
 pyautogui.FAILSAFE = False
 
 
+def split_one(num_interval=1):
+    num_list = np.sinh(list(i + 1 for i in range(num_interval)), dtype=np.float)
+    return num_list / np.sum(num_list)
+
+
 class Lf2Env(gym.Env):
     """
     Crop a image from the gaming window, and return all players info as well as
@@ -32,6 +37,7 @@ class Lf2Env(gym.Env):
                  frame_stack=4,
                  frame_skip=1,
                  reset_skip_sec=2,
+                 gray_scale=True,
                  mode='mix',
                  basic_action=False):
         """
@@ -42,6 +48,7 @@ class Lf2Env(gym.Env):
         :param frame_stack: number of frames should be stacked
         :param frame_skip: number of frames to skip before stacking.
         :param reset_skip_sec: immortal time (sec)
+        :param gray_scale: convert recording image from rgb to gray scale
         :param mode: observation output mode.
         :param basic_action: only output L,R,U,D,A,D,J
         """
@@ -71,8 +78,10 @@ class Lf2Env(gym.Env):
         self.img_w = 0
         self.frame_skip = frame_skip
         self.downscale = downscale
+        self.gray_scale = gray_scale
 
         self.frame_stack = frame_stack
+        self.img_weights = split_one(self.frame_stack)
         self.frames = deque([], maxlen=self.frame_stack)
         # Immortal seconds before every rounds.
         self.reset_skip_sec = reset_skip_sec
@@ -85,6 +94,10 @@ class Lf2Env(gym.Env):
         self.reward = 0
         self.bot_attack = 0
         while True:
+            if self.gray_scale:
+                img_last_dim = 1
+            else:
+                img_last_dim = 3
             if len(self.frames) != 0:
                 # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
                 low = [0, 0, 0, 0, 0, -np.inf] * num_players
@@ -95,13 +108,13 @@ class Lf2Env(gym.Env):
                     self.observation_space = spaces.Dict({
                         'Info': info,
                         'Game_Screen': spaces.Box(low=0, high=255,
-                                                  shape=(self.img_h, self.img_w, frame_stack))
+                                                  shape=(self.img_h, self.img_w, img_last_dim))
                     })
                 elif self.mode == 'info':
                     self.observation_space = info
                 elif self.mode == 'picture':
                     self.observation_space = spaces.Box(low=0, high=255,
-                                                        shape=(self.img_h, self.img_w, frame_stack))
+                                                        shape=(self.img_h, self.img_w, img_last_dim))
                 else:
                     raise ValueError('Not Supported mode.... Exiting.')
                 break
@@ -132,7 +145,10 @@ class Lf2Env(gym.Env):
                 time.sleep(0.001)
 
         if self.mode == 'picture':
-            ob = np.stack(self.frames, axis=2)
+            img_stack = np.stack(self.frames, axis=-1)
+            img_stack = np.multiply(img_stack, split_one(self.frame_stack))
+            ob = np.sum(img_stack, axis=-1)
+
         elif self.mode == 'mix':
             # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
             info = [self.my_player.Mp, self.my_player.Hp, int(self.my_player.facing_bool),
@@ -144,7 +160,16 @@ class Lf2Env(gym.Env):
                 info += [self.players[i].Mp, self.players[i].Hp, int(self.players[i].facing_bool),
                          self.players[i].x_pos, self.players[i].y_pos, self.players[i].z_pos]
 
-            ob = dict(Game_Screen=np.stack(self.frames, axis=2),
+            # img_stack = np.stack(self.frames, axis=-1)
+            _imgs = np.array(self.frames)
+            # tmp_img = np.zeros_like(self.frames[0], dtype=np.float)
+            # for i in range(self.frame_staIck):
+            #     tmp_img += self.img_weights[i] * _imgs[i]
+            #
+            # img_stack = np.sum(_imgs, axis=0, dtype=np.int8)
+            img_stack = self.img_weights[0] * _imgs[0] + self.img_weights[1] * _imgs[1] + self.img_weights[2] * _imgs[2]
+            # cv2.imshKey(1)
+            ob = dict(Game_Screen=img_stack.astype(np.int8),
                       Info=np.array(info))
 
         else:
@@ -185,8 +210,8 @@ class Lf2Env(gym.Env):
                    'height': int(((rect[3] - rect[1]) * 2 / 3) - 2),
                    'width': int(rect[2] - rect[0])}
 
-            screen_shot = self.sct.grab(pos)
-            screen_shot = np.array(screen_shot)
+            # img color in BGR order
+            screen_shot = np.array(self.sct.grab(pos), np.uint8)[:, :, :3]
 
             if np.array_equal(last_frame, screen_shot):
                 # refresh until new frame exists.
@@ -200,8 +225,8 @@ class Lf2Env(gym.Env):
                 print('img dimension: H {} W {}'.format(self.img_h, self.img_w))
 
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-
+            if self.gray_scale:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             # skip this frame
             if skip_i >= self.frame_skip:
                 self.frames.append(frame)

@@ -9,7 +9,7 @@ from lf2_rl.Model_keras import DQN
 if __name__ == '__main__':
 
     mode = 'mix'
-    karg = dict(frame_stack=3, frame_skip=1, reset_skip_sec=2, mode=mode)
+    karg = dict(frame_stack=3, frame_skip=1, reset_skip_sec=2, mode=mode, gray_scale=False, downscale=2)
     lf2_env = gym.make('LittleFighter2-v0', **karg)
 
     act_n = lf2_env.action_space.n
@@ -19,19 +19,18 @@ if __name__ == '__main__':
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 100000
     agent = DQN(act_n, state_n, 0,
-                memory_capacity=60000,
-                batch_size=60,
+                memory_capacity=2000,
+                batch_size=30,
                 learning_rate=0.00001,
-                momentum=0.8,
+                momentum=0.9,
                 save_freq=200,
-                epsilon=0.85,
+                epsilon=0.7,
                 dueling=True,
                 prioritized=True)
     records = []
     for ep in range(train_ep):
 
         # pass episode to tensorboard.
-        agent.tb.step = ep
         obs = lf2_env.reset()
 
         pic = None
@@ -64,6 +63,9 @@ if __name__ == '__main__':
                 pic = obs
             else:
                 info = obs
+
+            # cv2.imshow('img', pic)
+            # cv2.waitKey(1)
             observation_ = DQN.trans_obser(pic, info, mode)
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_)
