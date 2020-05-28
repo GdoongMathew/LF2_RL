@@ -193,10 +193,10 @@ class Net:
         model = Flatten()(model)
         model = Dense(512, activation=tf.nn.relu)(model)
         model = Concatenate()([model, fea_input])
-        model = Dense(100, activation=tf.nn.relu)(model)
+        model = Dense(256, activation=tf.nn.relu)(model)
 
         if self.dueling:
-            model = Dense(self.action_n + 1)(model)
+            model = Dense(self.action_n + 1, activation='linear')(model)
 
             # q_val = value + advantages - avg/max(advantages)
             if self.duel_type == 'avg':
@@ -271,6 +271,7 @@ class DQN(BaseModel):
         if np.random.uniform() > self.policy():
             action_val = self.target_net.predict_on_batch([[x[0]], [x[1]]])
             action = np.argmax(action_val, axis=-1)[0]
+            print(f'Action_V: {action_val}, action_id: {action}')
 
         else:
             action = np.random.randint(0, self.action_n)

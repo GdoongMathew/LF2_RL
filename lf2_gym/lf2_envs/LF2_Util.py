@@ -333,8 +333,6 @@ class PlayGround:
             self.process_wr.write_int(0x451160, 0)
         press_key(Template().attack())
 
-
-
     def find_property(self):
         pass
 

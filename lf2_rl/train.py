@@ -21,7 +21,7 @@ if __name__ == '__main__':
     agent = DQN(act_n, state_n, 0,
                 memory_capacity=2000,
                 batch_size=30,
-                learning_rate=0.00001,
+                learning_rate=0.000001,
                 momentum=0.9,
                 save_freq=200,
                 epsilon=0.7,
@@ -70,6 +70,8 @@ if __name__ == '__main__':
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_)
             total_reward += reward
+
+            observation = observation_
 
             if done:
                 total_reward = round(total_reward, 2)
