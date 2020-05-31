@@ -20,6 +20,7 @@ from keras import backend as K
 
 from .util import Memory, ModifiedTensorBoard
 from .basemodel import BaseModel
+from glob import glob
 import numpy as np
 import os
 
@@ -241,7 +242,8 @@ class DQN(BaseModel):
                               duel_type=duel_type).create_model()
         self.target_net.set_weights(self.eval_net.get_weights())
         if isinstance(weight_path, type(None)):
-            self.weight_path = f'./Keras_Save/keras_dqn.h5'
+            path = glob(f'./Keras_Save/keras_dqn_*.h5')
+            self.weight_path = path[0]
         elif not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
             self.weight_path = weight_path
             if os.path.isfile(self.weight_path):
@@ -254,7 +256,7 @@ class DQN(BaseModel):
             os.mkdir(tb_path)
         self.tb = ModifiedTensorBoard(log_dir=tb_path)
 
-        self.compile(SGD(lr=self.lr, momentum=self.momentum))
+        # self.compile(SGD(lr=self.lr, momentum=self.momentum))
         self.tb.set_model(self.eval_net)
 
     @staticmethod
@@ -268,10 +270,10 @@ class DQN(BaseModel):
         return observation
 
     def choose_action(self, x):
-        if np.random.uniform() > self.policy():
+        if np.random.random() > self.policy():
             action_val = self.target_net.predict_on_batch([[x[0]], [x[1]]])
             action = np.argmax(action_val, axis=-1)[0]
-            print(f'Action_V: {action_val}, action_id: {action}')
+            # print(f'Action_V: {action_val}, action_id: {action}')
 
         else:
             action = np.random.randint(0, self.action_n)
@@ -279,10 +281,8 @@ class DQN(BaseModel):
         return action
 
     def policy(self):
-        p = self.epsilon - self.step_counter // 7000
-        if p <= 0.1:
-            p = 0.15
-        return p
+        p = self.epsilon * (self.epsilon_decay ** self.step_counter)
+        return max(p, 0.001)
 
     def compile(self, optimizer, metrics=[]):
         def clipped_masked_error(args):
@@ -325,12 +325,14 @@ class DQN(BaseModel):
         b_r = []
         b_picture_ = []
         b_feature_ = []
+        b_done = []
 
         for mem in b_memory:
             b_picture.append(mem.state_0[0])
             b_feature.append(mem.state_0[1])
             b_a.append(mem.action)
             b_r.append(mem.reward)
+            b_done.append(mem.done)
             b_picture_.append(mem.state_1[0])
             b_feature_.append(mem.state_1[1])
 
@@ -357,11 +359,11 @@ class DQN(BaseModel):
         dummy_targets = np.zeros((self.batch_size, ))
         masks = np.zeros((self.batch_size, self.action_n))
 
-        discounted_reward = self.gamma * q_batch
-        assert discounted_reward.shape == b_r.shape
-        rs = b_r + discounted_reward
-
-        for idx, (target, mask, R, action) in enumerate(zip(targets, masks, rs, b_a)):
+        for idx, (target, mask, q, action, done) in enumerate(zip(targets, masks, q_batch, b_a, b_done)):
+            if not done:
+                R = q * self.gamma + b_r[idx]
+            else:
+                R = q
             target[action] = R
             mask[action] = 1.0  # calculate loss of this action
             dummy_targets[idx] = R
@@ -381,6 +383,63 @@ class DQN(BaseModel):
 
         if self.step_counter % self.save_freq:
             self.save_weight(self.weight_path)
+
+    def learn2(self):
+        if isinstance(self.memory, Memory):
+            # is prioritized
+            tree_idx, b_memory, is_weight = self.memory.sample(self.batch_size)
+
+        else:
+            sample_index = np.random.choice(self.memory_capacity, self.batch_size)
+            b_memory = self.memory[sample_index]
+
+        b_picture = []
+        b_feature = []
+        b_a = []
+        b_r = []
+        b_done = []
+        b_picture_ = []
+        b_feature_ = []
+
+        for mem in b_memory:
+            b_picture.append(mem.state_0[0])
+            b_feature.append(mem.state_0[1])
+            b_a.append(mem.action)
+            b_r.append(mem.reward)
+            b_done.append(mem.done)
+            b_picture_.append(mem.state_1[0])
+            b_feature_.append(mem.state_1[1])
+
+        b_picture = self.data_process(np.asarray(b_picture))
+        b_feature = np.asarray(b_feature)
+        b_picture_ = self.data_process(np.asarray(b_picture_))
+        b_feature_ = np.asarray(b_feature_)
+
+        b_a = np.asarray(b_a)
+        b_r = np.asarray(b_r)
+
+        b_s = [b_picture, b_feature]
+        b_s_ = [b_picture_, b_feature_]
+
+        target_q = self.target_net.predict_on_batch(b_s_)
+        q_val = self.eval_net.predict_on_batch(b_s)
+
+        for i in range(self.batch_size):
+            rs = b_r[i]
+            if not b_done[i]:
+                rs += self.gamma * np.max(target_q[i])
+            q_val[i][b_a[i]] = rs
+
+        self.eval_net.fit(b_s, q_val, batch_size=self.batch_size, verbose=1, shuffle=False, callbacks=[self.tb])
+
+        if self.step_counter % self.update_freq == 0:
+            self.target_net.set_weights(self.eval_net.get_weights())
+        self.step_counter += 1
+        self.tb.step = self.step_counter
+
+        if self.step_counter % self.save_freq:
+            split_txt = os.path.splitext(self.weight_path)
+            self.save_weight(split_txt[0] + f'_{self.step_counter}' + split_txt[-1])
 
     @ staticmethod
     def reward_modify(r):

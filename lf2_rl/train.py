@@ -19,12 +19,13 @@ if __name__ == '__main__':
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 100000
     agent = DQN(act_n, state_n, 0,
-                memory_capacity=2000,
-                batch_size=30,
+                # weight_path=f'./Keras_Save/keras_dqn_7079.h5',
+                memory_capacity=200,
+                batch_size=48,
                 learning_rate=0.000001,
                 momentum=0.9,
                 save_freq=200,
-                epsilon=0.7,
+                epsilon=0.995,
                 dueling=True,
                 prioritized=True)
     records = []
@@ -68,20 +69,21 @@ if __name__ == '__main__':
             # cv2.waitKey(1)
             observation_ = DQN.trans_obser(pic, info, mode)
             # RL learn from this transition
-            agent.store_transition(observation, action, reward, observation_)
+            agent.store_transition(observation, action, reward, observation_, done)
             total_reward += reward
 
             observation = observation_
 
             if done:
-                total_reward = round(total_reward, 2)
+                # total_reward = round(total_reward, 2)
                 records.append((iter_cnt, total_reward))
+                agent.tb.update_stats(total_reward=total_reward, epsilon=ep)
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
 
                 if agent.memory_counter > agent.memory_capacity:
-                    for i in range(15):
-                        agent.learn()
+                    for i in range(iter_cnt):
+                        agent.learn2()
                     print('RL learned 15 times.')
                 break
 

@@ -8,12 +8,14 @@ class LeafData:
     state_1 = None
     action = None
     reward = None
+    done = False
 
-    def __init__(self, state_0, state_1, action, reward):
+    def __init__(self, state_0, state_1, action, reward, done=False):
         self.state_0 = state_0
         self.state_1 = state_1
         self.action = action
         self.reward = reward
+        self.done = done
 
 
 class SumTree:
@@ -117,6 +119,10 @@ class ModifiedTensorBoard(TensorBoard):
         super().__init__(**kwargs)
         self.step = 1
         self.writer = tf.summary.FileWriter(self.log_dir)
+
+    # Overriding this method to stop creating default log writer
+    def set_model(self, model):
+        pass
 
     # Overrided, saves logs with our step number
     # (otherwise every .fit() will start writing from 0th step)

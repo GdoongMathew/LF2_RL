@@ -162,11 +162,6 @@ class Lf2Env(gym.Env):
 
             # img_stack = np.stack(self.frames, axis=-1)
             _imgs = np.array(self.frames)
-            # tmp_img = np.zeros_like(self.frames[0], dtype=np.float)
-            # for i in range(self.frame_staIck):
-            #     tmp_img += self.img_weights[i] * _imgs[i]
-            #
-            # img_stack = np.sum(_imgs, axis=0, dtype=np.int8)
             img_stack = self.img_weights[0] * _imgs[0] + self.img_weights[1] * _imgs[1] + self.img_weights[2] * _imgs[2]
             # cv2.imshKey(1)
             ob = dict(Game_Screen=img_stack.astype(np.int8),
