@@ -146,7 +146,7 @@ class ModifiedTensorBoard(TensorBoard):
 
 # Cylindrical Learning Rate
 def cylindrical_lr(initial_lr, minimal_lr=1e-10, cycle_step=10000):
-    assert initial_lr < minimal_lr
+    assert initial_lr >= minimal_lr
     step_rate_factor = abs(initial_lr - minimal_lr) / cycle_step
 
     def lr(step):
