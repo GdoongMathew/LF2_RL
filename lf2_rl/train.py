@@ -2,6 +2,7 @@ import numpy as np
 # import torch
 import gym
 import lf2_gym
+import os
 import cv2
 
 from lf2_rl.Model_keras import DQN
@@ -19,16 +20,21 @@ if __name__ == '__main__':
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 100000
     agent = DQN(act_n, state_n, 0,
+                update_freq=2000,
                 # weight_path=f'./Keras_Save/keras_dqn_7079.h5',
-                memory_capacity=200,
-                batch_size=48,
-                learning_rate=0.000001,
+                memory_capacity=60,
+                batch_size=8,
+                learning_rate=1e-6,
                 momentum=0.9,
                 save_freq=200,
                 epsilon=0.995,
                 dueling=True,
                 prioritized=True)
     records = []
+
+    max_r = 0
+    weight_path = f'./Keras_Save/keras_dqn_5174.h5'
+
     for ep in range(train_ep):
 
         # pass episode to tensorboard.
@@ -81,9 +87,13 @@ if __name__ == '__main__':
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
 
+                if total_reward > max_r:
+                    split_txt = os.path.splitext(weight_path)
+                    agent.save_weight(split_txt[0] + f'_{agent.step_counter}' + split_txt[-1])
+
                 if agent.memory_counter > agent.memory_capacity:
                     for i in range(iter_cnt):
-                        agent.learn2()
+                        agent.learn()
                     print('RL learned 15 times.')
                 break
 
