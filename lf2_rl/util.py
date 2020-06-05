@@ -1,4 +1,4 @@
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, LearningRateScheduler
 import tensorflow as tf
 import numpy as np
 
@@ -142,3 +142,15 @@ class ModifiedTensorBoard(TensorBoard):
     # Creates writer, writes custom metrics and closes writer
     def update_stats(self, **stats):
         self._write_logs(stats, self.step)
+
+
+# Cylindrical Learning Rate
+def cylindrical_lr(initial_lr, minimal_lr=1e-10, cycle_step=10000):
+    assert initial_lr < minimal_lr
+    step_rate_factor = abs(initial_lr - minimal_lr) / cycle_step
+
+    def lr(step):
+        cycle_factor = -1 if (step // cycle_step) % 2 else 1
+        learn_rate = initial_lr - step_rate_factor * cycle_factor
+        return learn_rate
+    return lr
