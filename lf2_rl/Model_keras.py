@@ -21,7 +21,7 @@ from keras.optimizers import Adam, SGD
 from keras import backend as K
 import keras
 
-from .util import Memory, ModifiedTensorBoard
+from .util import Memory, ModifiedTensorBoard, cylindrical_lr
 from .basemodel import BaseModel
 from glob import glob
 import numpy as np
@@ -259,6 +259,10 @@ class DQN(BaseModel):
         # self.compile(SGD(lr=self.lr, momentum=self.momentum))
         self.tb.set_model(self.eval_net)
 
+        self.lr_scheduler = keras.callbacks.LearningRateScheduler(
+            cylindrical_lr(self.lr)
+        )
+
     @staticmethod
     def trans_obser(observation, feature, mode):
         if mode == 'picture':
@@ -330,11 +334,16 @@ class DQN(BaseModel):
                 rs += self.gamma * np.max(target_q[i])
             q_val[i][b_a[i]] = rs
 
-        self.eval_net.fit(b_s, q_val, batch_size=self.batch_size, verbose=1, shuffle=False, callbacks=[self.tb])
+        self.eval_net.fit(b_s, q_val,
+                          batch_size=self.batch_size,
+                          verbose=1,
+                          shuffle=False,
+                          callbacks=[self.tb, self.lr_scheduler])
 
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.tb.step = self.step_counter
+        self.tb.update_stats(lr=self.eval_net.optimizer.lr)
         self.step_counter += 1
 
     @ staticmethod
