@@ -4,7 +4,7 @@ from keras.models import Model
 from keras import layers
 from keras.layers import Concatenate
 from keras.layers import Input
-from keras.layers import Conv2D
+from keras.layers import Conv2D, Conv1D
 from keras.layers import BatchNormalization
 from keras.layers import Activation
 from keras.layers import DepthwiseConv2D
@@ -12,11 +12,14 @@ from keras.layers import ZeroPadding2D
 from keras.layers import Dense
 from keras.layers import Flatten
 from keras.layers import Lambda
+from keras.layers import GlobalMaxPooling1D
+from keras.layers import Dropout
+from keras.layers import Reshape
 from keras.layers import LSTM
 
 from keras.optimizers import Adam, SGD
 from keras import backend as K
-
+import keras
 
 from .util import Memory, ModifiedTensorBoard
 from .basemodel import BaseModel
@@ -28,24 +31,6 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 K.set_session(sess)
-
-
-def mean_q(y_true, y_pred):
-    return K.mean(K.max(y_pred, axis=-1))
-
-
-def huber_loss(y_true, y_pred, clip_value):
-    assert clip_value > 0.
-
-    x = y_true - y_pred
-    squared_loss = 0.5 * K.square(x)
-    if np.isinf(clip_value):
-        return squared_loss
-
-    condition = K.abs(x) < clip_value
-    linear_loss = clip_value * (K.abs(x) - 0.5 * clip_value)
-
-    return tf.where(condition, squared_loss, linear_loss)
 
 
 def SepConv_BN(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activation=False, epsilon=1e-3):
@@ -162,7 +147,7 @@ class Net:
         img_input = Input(shape=self.picture_n)
         fea_input = Input(shape=(self.feature_n, ))
 
-        model = Conv2D(32, (3, 3), strides=2)(img_input)
+        model = Conv2D(32, (3, 3), strides=1)(img_input)
         model = BatchNormalization()(model)
         model = Activation('relu')(model)
 
@@ -184,7 +169,7 @@ class Net:
 
         model = xception_block(model, [182, 256, 256], 'exit_flow_block1',
                                skip_connection_type='conv', stride=1, rate=4,
-                               depth_activation=True)
+                               depth_activation=False)
 
         model = xception_block(model, [384, 384, 512], 'exit_flow_block2',
                                skip_connection_type='none', stride=1, rate=4,
@@ -194,7 +179,14 @@ class Net:
         model = Flatten()(model)
         model = Dense(512, activation=tf.nn.relu)(model)
         model = Concatenate()([model, fea_input])
-        model = Dense(256, activation=tf.nn.relu)(model)
+        model = Reshape((512 + self.feature_n, 1))(model)
+        model = Conv1D(512, (5,), activation='relu')(model)
+        model = GlobalMaxPooling1D()(model)
+        model = Dense(512, activation=tf.nn.relu)(model)
+        model = Reshape((512, 1))(model)
+        model = Conv1D(256, (5,), activation='relu')(model)
+        model = GlobalMaxPooling1D()(model)
+        # model = Dropout(0.15)(model)
 
         if self.dueling:
             model = Dense(self.action_n + 1, activation='linear')(model)
@@ -217,25 +209,33 @@ class Net:
         model = Model(inputs=[img_input, fea_input], outputs=model)
         # model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
         model.compile(loss='mse', optimizer=self.optimizer, metrics=['accuracy'])
+
+        reg_loss = [
+            keras.regularizers.l2(0.01)(w) / tf.cast(tf.size(w), tf.float32)
+            for w in model.trainable_weights if 'gamma' not in w.name and 'beta'
+                                                not in w.name
+        ]
+
+        model.add_loss(tf.add_n(reg_loss))
         return model
 
 
 class DQN(BaseModel):
     def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
-                 weight_path=f'./Keras_Save/keras_dqn.h5', lstm_hidden=50, **kwargs):
+                 weight_path=f'./Keras_Save/keras_dqn_1DConv.h5', lstm_hidden=50, **kwargs):
         super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
         self.dueling = dueling
 
         self.eval_net = Net(self.action_n, self.state_n,
-                            SGD(lr=self.lr, momentum=self.momentum),
+                            SGD(lr=self.lr, momentum=self.momentum, clipnorm=1.0, clipvalue=1.5),
                             batch_size=self.batch_size,
                             lstm_hidden=lstm_hidden,
                             dueling=self.dueling,
                             duel_type=duel_type).create_model()
         self.eval_net.summary()
         self.target_net = Net(self.action_n, self.state_n,
-                              SGD(lr=self.lr, momentum=self.momentum),
+                              SGD(lr=self.lr, momentum=self.momentum, clipnorm=1.0, clipvalue=1.5),
                               batch_size=self.batch_size,
                               lstm_hidden=lstm_hidden,
                               dueling=self.dueling,
@@ -284,107 +284,7 @@ class DQN(BaseModel):
         p = self.epsilon * (self.epsilon_decay ** self.step_counter)
         return max(p, 0.001)
 
-    def compile(self, optimizer, metrics=[]):
-        def clipped_masked_error(args):
-            _true, _pred, _mask = args
-            loss = huber_loss(_true, _pred, np.inf)
-            loss *= mask
-            return K.sum(loss, axis=-1)
-
-        metrics += [mean_q]
-
-        y_pred = self.eval_net.output
-        y_true = Input(name='y_true', shape=(self.action_n, ))
-        mask = Input(name='mask', shape=(self.action_n, ))
-        loss_out = Lambda(clipped_masked_error, output_shape=(1, ), name='loss')([y_true, y_pred, mask])
-        ins = [self.eval_net.input] if type(self.eval_net.input) is not list else self.eval_net.input
-        trainable_model = Model(inputs=ins + [y_true, mask], outputs=[loss_out, y_pred])
-        assert len(trainable_model.output_names) == 2
-        combined_metrics = {trainable_model.output_names[1]: metrics}
-        losses = [
-            lambda y_true, y_pred: y_pred,
-            lambda y_true, y_pred: K.zeros_like(y_pred)
-        ]
-
-        trainable_model.compile(optimizer=optimizer, loss=losses, metrics=combined_metrics)
-        self.trainable_model = trainable_model
-
     def learn(self):
-        # sample batch transitions
-        if isinstance(self.memory, Memory):
-            # is prioritized
-            tree_idx, b_memory, is_weight = self.memory.sample(self.batch_size)
-
-        else:
-            sample_index = np.random.choice(self.memory_capacity, self.batch_size)
-            b_memory = self.memory[sample_index]
-
-        b_picture = []
-        b_feature = []
-        b_a = []
-        b_r = []
-        b_picture_ = []
-        b_feature_ = []
-        b_done = []
-
-        for mem in b_memory:
-            b_picture.append(mem.state_0[0])
-            b_feature.append(mem.state_0[1])
-            b_a.append(mem.action)
-            b_r.append(mem.reward)
-            b_done.append(mem.done)
-            b_picture_.append(mem.state_1[0])
-            b_feature_.append(mem.state_1[1])
-
-        b_picture = self.data_process(np.asarray(b_picture))
-        b_feature = np.asarray(b_feature)
-        b_picture_ = self.data_process(np.asarray(b_picture_))
-        b_feature_ = np.asarray(b_feature_)
-
-        b_a = np.asarray(b_a)
-        b_r = np.asarray(b_r)
-
-        b_s = [b_picture, b_feature]
-        b_s_ = [b_picture_, b_feature_]
-
-        target_q = self.target_net.predict_on_batch(b_s_)
-        if self.dueling:
-            q_val = self.eval_net.predict_on_batch(b_s)
-            actions = np.argmax(q_val, axis=1)
-            q_batch = target_q[range(self.batch_size), actions]
-        else:
-            q_batch = np.max(target_q, axis=1).flatten()
-
-        targets = np.zeros((self.batch_size, self.action_n))
-        dummy_targets = np.zeros((self.batch_size, ))
-        masks = np.zeros((self.batch_size, self.action_n))
-
-        for idx, (target, mask, q, action, done) in enumerate(zip(targets, masks, q_batch, b_a, b_done)):
-            if not done:
-                R = q * self.gamma + b_r[idx]
-            else:
-                R = q
-            target[action] = R
-            mask[action] = 1.0  # calculate loss of this action
-            dummy_targets[idx] = R
-
-        ins = [b_s] if type(self.eval_net.input) is not list else b_s
-        metrics = self.trainable_model.train_on_batch(ins + [targets, masks], [dummy_targets, targets])
-        metrics = [metric for idx, metric in enumerate(metrics) if idx not in (1, 2)]
-        self.trainable_model.fit(ins + [targets, masks], [dummy_targets, targets],
-                                 batch_size=self.batch_size,
-                                 verbose=True,
-                                 callbacks=[self.tb])
-        # print(f'metrics: {metrics}')
-        if self.step_counter % self.update_freq == 0:
-            self.target_net.set_weights(self.eval_net.get_weights())
-        self.step_counter += 1
-        self.tb.step += 1
-
-        if self.step_counter % self.save_freq:
-            self.save_weight(self.weight_path)
-
-    def learn2(self):
         if isinstance(self.memory, Memory):
             # is prioritized
             tree_idx, b_memory, is_weight = self.memory.sample(self.batch_size)
@@ -434,12 +334,8 @@ class DQN(BaseModel):
 
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
-        self.step_counter += 1
         self.tb.step = self.step_counter
-
-        if self.step_counter % self.save_freq:
-            split_txt = os.path.splitext(self.weight_path)
-            self.save_weight(split_txt[0] + f'_{self.step_counter}' + split_txt[-1])
+        self.step_counter += 1
 
     @ staticmethod
     def reward_modify(r):
@@ -451,6 +347,12 @@ class DQN(BaseModel):
     def restore_weight(self, path=None):
         self.eval_net.load_weights(path)
         self.target_net.set_weights(self.eval_net.get_weights())
+
+
+# class PolicyGradient(BaseModel):
+#     (self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
+#     weight_path=f'./Keras_Save/keras_dqn.h5', lstm_hidden = 50, ** kwargs):
+#     super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
 
 if __name__ == '__main__':
