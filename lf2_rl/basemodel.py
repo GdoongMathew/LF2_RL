@@ -33,7 +33,7 @@ class BaseModel:
 
     @ staticmethod
     def reward_modify(r):
-        return r
+        return r * 10
 
     def policy(self):
         return self.epsilon

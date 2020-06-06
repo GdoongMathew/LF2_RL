@@ -144,6 +144,15 @@ class ModifiedTensorBoard(TensorBoard):
         self._write_logs(stats, self.step)
 
 
+class ModifiedLRScheduler(LearningRateScheduler):
+    def __init__(self, *args, **kargs):
+        super(ModifiedLRScheduler, self).__init__(*args, **kargs)
+        self.step = 1
+
+    def on_epoch_begin(self, epoch, logs=None):
+        super(ModifiedLRScheduler, self).on_epoch_begin(self.step, logs=logs)
+
+
 # Cylindrical Learning Rate
 def cylindrical_lr(initial_lr, minimal_lr=1e-10, cycle_step=10000):
     assert initial_lr >= minimal_lr

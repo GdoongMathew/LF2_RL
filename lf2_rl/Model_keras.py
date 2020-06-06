@@ -21,14 +21,16 @@ from keras.optimizers import Adam, SGD
 from keras import backend as K
 import keras
 
-from .util import Memory, ModifiedTensorBoard, cylindrical_lr
+from .util import Memory, ModifiedTensorBoard
 from .basemodel import BaseModel
 from glob import glob
 import numpy as np
 import os
 
-config = tf.ConfigProto()
+
+config = tf.ConfigProto(intra_op_parallelism_threads=4)
 config.gpu_options.allow_growth = True
+# config.gpu_options.per_process_gpu_memory_fraction = 0.8
 sess = tf.Session(config=config)
 K.set_session(sess)
 
@@ -171,7 +173,7 @@ class Net:
                                skip_connection_type='conv', stride=1, rate=4,
                                depth_activation=False)
 
-        model = xception_block(model, [384, 384, 512], 'exit_flow_block2',
+        model = xception_block(model, [384, 384, 384], 'exit_flow_block2',
                                skip_connection_type='none', stride=1, rate=4,
                                depth_activation=True)
 
@@ -222,20 +224,20 @@ class Net:
 
 class DQN(BaseModel):
     def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
-                 weight_path=f'./Keras_Save/keras_dqn_1DConv.h5', lstm_hidden=50, **kwargs):
+                 weight_path=f'./Keras_Save/keras_dqn_1DConv.h5', lstm_hidden=50, callbacks=[],**kwargs):
         super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
         self.dueling = dueling
 
         self.eval_net = Net(self.action_n, self.state_n,
-                            SGD(lr=self.lr, momentum=self.momentum, clipnorm=1.0, clipvalue=1.5),
+                            SGD(lr=self.lr, momentum=self.momentum),
                             batch_size=self.batch_size,
                             lstm_hidden=lstm_hidden,
                             dueling=self.dueling,
                             duel_type=duel_type).create_model()
         self.eval_net.summary()
         self.target_net = Net(self.action_n, self.state_n,
-                              SGD(lr=self.lr, momentum=self.momentum, clipnorm=1.0, clipvalue=1.5),
+                              SGD(lr=self.lr, momentum=self.momentum),
                               batch_size=self.batch_size,
                               lstm_hidden=lstm_hidden,
                               dueling=self.dueling,
@@ -259,9 +261,8 @@ class DQN(BaseModel):
         # self.compile(SGD(lr=self.lr, momentum=self.momentum))
         self.tb.set_model(self.eval_net)
 
-        self.lr_scheduler = keras.callbacks.LearningRateScheduler(
-            cylindrical_lr(self.lr)
-        )
+        # add callbacks
+        self.callbacks = callbacks + [self.tb]
 
     @staticmethod
     def trans_obser(observation, feature, mode):
@@ -338,12 +339,11 @@ class DQN(BaseModel):
                           batch_size=self.batch_size,
                           verbose=1,
                           shuffle=False,
-                          callbacks=[self.tb, self.lr_scheduler])
+                          callbacks=self.callbacks)
 
         if self.step_counter % self.update_freq == 0:
             self.target_net.set_weights(self.eval_net.get_weights())
         self.tb.step = self.step_counter
-        self.tb.update_stats(lr=self.eval_net.optimizer.lr)
         self.step_counter += 1
 
     @ staticmethod

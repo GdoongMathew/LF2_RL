@@ -1,4 +1,4 @@
-import numpy as np
+from keras import backend as K
 # import torch
 import gym
 import lf2_gym
@@ -6,6 +6,7 @@ import os
 import cv2
 
 from lf2_rl.Model_keras import DQN
+from lf2_rl.util import ModifiedLRScheduler, cylindrical_lr
 
 if __name__ == '__main__':
 
@@ -19,16 +20,22 @@ if __name__ == '__main__':
 
     # obs = [obs['Game_Screen'], obs['Info']]
     train_ep = 100000
+
+    learning_rate = 1e-6
+    lr_scheduler = ModifiedLRScheduler(cylindrical_lr(learning_rate))
+    callbacks = [lr_scheduler]
+
     agent = DQN(act_n, state_n, 0,
                 update_freq=2000,
-                # weight_path=f'./Keras_Save/keras_dqn_7079.h5',
-                memory_capacity=60,
+                weight_path=f'./Keras_Save/keras_dqn.h5',
+                memory_capacity=500,
                 batch_size=8,
-                learning_rate=1e-6,
+                learning_rate=learning_rate,
                 momentum=0.9,
                 save_freq=200,
                 epsilon=0.995,
                 dueling=True,
+                # callbacks=callbacks,
                 prioritized=True)
     records = []
 
@@ -83,7 +90,7 @@ if __name__ == '__main__':
             if done:
                 # total_reward = round(total_reward, 2)
                 records.append((iter_cnt, total_reward))
-                agent.tb.update_stats(total_reward=total_reward, epsilon=ep)
+                agent.tb.update_stats(total_reward=total_reward, epsilon=ep, lr=K.eval(agent.eval_net.optimizer.lr))
                 print("Episode {} finished after {} timesteps, total reward is {}".format(ep + 1, iter_cnt,
                                                                                           total_reward))
 
@@ -94,7 +101,8 @@ if __name__ == '__main__':
                 if agent.memory_counter > agent.memory_capacity:
                     for i in range(iter_cnt):
                         agent.learn()
-                    print('RL learned 15 times.')
+                    print(f'RL learned {iter_cnt} times.')
+                    lr_scheduler.step += 1
                 break
 
     print('-------------------------')
