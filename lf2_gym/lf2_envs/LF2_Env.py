@@ -320,7 +320,7 @@ class Lf2Env(gym.Env):
                 enemy_hp.append(hp_norm)
 
         self.reward = (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
-        mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Max
+        mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Ma
         self.reward += mp_reward
 
         # death penalty
@@ -329,7 +329,7 @@ class Lf2Env(gym.Env):
 
         # increase reward when increasing attacks.
         if self.my_player.Attack != self.bot_attack:
-            self.reward += (self.my_player.Attack - self.bot_attack) * 10
+            self.reward += (self.my_player.Attack - self.bot_attack) / 10
             self.bot_attack = self.my_player.Attack
 
         # Most simple reward?
