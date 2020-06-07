@@ -320,7 +320,7 @@ class Lf2Env(gym.Env):
                 enemy_hp.append(hp_norm)
 
         self.reward = (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
-        mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Ma
+        mp_reward = (self.my_player.Mp_Max - self.my_player.Mp) / self.my_player.Mp_Max
         self.reward += mp_reward
 
         # death penalty
