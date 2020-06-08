@@ -40,7 +40,7 @@ if __name__ == '__main__':
     records = []
 
     max_r = 0
-    weight_path = f'./Keras_Save/keras_dqn_5174.h5'
+    weight_path = f'./Keras_Save/keras_dqn.h5'
 
     for ep in range(train_ep):
 
@@ -57,7 +57,7 @@ if __name__ == '__main__':
             pic = obs
         else:
             info = obs
-        observation = DQN.trans_obser(pic, info, mode)
+        observation = agent.trans_obser(pic, info, mode)
 
         iter_cnt, total_reward = 0, 0
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
             # cv2.imshow('img', pic)
             # cv2.waitKey(1)
-            observation_ = DQN.trans_obser(pic, info, mode)
+            observation_ = agent.trans_obser(pic, info, mode)
             # RL learn from this transition
             agent.store_transition(observation, action, reward, observation_, done)
             total_reward += reward

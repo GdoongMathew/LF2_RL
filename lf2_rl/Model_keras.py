@@ -21,7 +21,7 @@ from keras.optimizers import Adam, SGD
 from keras import backend as K
 import keras
 
-from .util import Memory, ModifiedTensorBoard
+from .util import Memory, ModifiedTensorBoard, LeafData
 from .basemodel import BaseModel
 from glob import glob
 import numpy as np
@@ -136,7 +136,16 @@ def xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
 
 
 class Net:
-    def __init__(self, action_n, state_n, optimizer, batch_size=32, lstm_hidden=50, dueling=False, duel_type='max'):
+    def __init__(self,
+                 action_n,
+                 state_n,
+                 optimizer,
+                 batch_size=32,
+                 lstm_hidden=50,
+                 dueling=False,
+                 duel_type='max',
+                 loss='mse',
+                 output_activation='linear'):
         self.action_n = action_n
         self.batch_size = batch_size
         self.picture_n, self.feature_n = state_n
@@ -144,6 +153,8 @@ class Net:
         self.dueling = dueling
         self.duel_type = duel_type
         self.optimizer = optimizer
+        self.loss = loss
+        self.output_activation = output_activation
 
     def create_model(self):
         img_input = Input(shape=self.picture_n)
@@ -206,11 +217,11 @@ class Net:
                 raise AssertionError('duel_type must be either avg or max.')
         else:
             # directly output q value
-            model = Dense(self.action_n, activation='linear')(model)
+            model = Dense(self.action_n, activation=self.output_activation)(model)
 
         model = Model(inputs=[img_input, fea_input], outputs=model)
         # model.compile(loss='mse', optimizer=Adam(lr=0.001), metrics=['accuracy'])
-        model.compile(loss='mse', optimizer=self.optimizer, metrics=['accuracy'])
+        model.compile(loss=self.loss, optimizer=self.optimizer, metrics=['accuracy'])
 
         reg_loss = [
             keras.regularizers.l2(0.01)(w) / tf.cast(tf.size(w), tf.float32)
@@ -224,7 +235,7 @@ class Net:
 
 class DQN(BaseModel):
     def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
-                 weight_path=f'./Keras_Save/keras_dqn_1DConv.h5', lstm_hidden=50, callbacks=[],**kwargs):
+                 weight_path=f'./Keras_Save/keras_dqn_1DConv.h5', lstm_hidden=50, callbacks=[], **kwargs):
         super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
 
         self.dueling = dueling
@@ -273,6 +284,17 @@ class DQN(BaseModel):
         elif mode == 'mix':
             observation = [observation, feature]
         return observation
+
+    def store_transition(self, s, a, r, s_, done):
+        r = self.reward_modify(r)
+        leaf_data = LeafData(s, s_, a, r, done)
+        if isinstance(self.memory, Memory):
+            self.memory.store(leaf_data)
+        else:
+            # replace the old memory with new memory
+            index = self.memory_counter % self.memory_capacity
+            self.memory[index] = leaf_data
+        self.memory_counter += 1
 
     def choose_action(self, x):
         if np.random.random() > self.policy():
@@ -358,10 +380,115 @@ class DQN(BaseModel):
         self.target_net.set_weights(self.eval_net.get_weights())
 
 
-# class PolicyGradient(BaseModel):
-#     (self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
-#     weight_path=f'./Keras_Save/keras_dqn.h5', lstm_hidden = 50, ** kwargs):
-#     super(DQN, self).__init__(action_n, state_n, env_shape, **kwargs)
+class PolicyGradient(BaseModel):
+    def __init__(self, action_n, state_n, env_shape, dueling=False, duel_type='max', prioritized=False,
+                 weight_path=f'./Keras_Save/keras_PG_1DConv.h5', lstm_hidden=50, callbacks=[], **kwargs):
+        super(PolicyGradient, self).__init__(action_n, state_n, env_shape, **kwargs)
+        self.dueling = dueling
+        self.model = Net(self.action_n, self.state_n,
+                         Adam(lr=self.lr),
+                         batch_size=self.batch_size,
+                         lstm_hidden=lstm_hidden,
+                         dueling=self.dueling,
+                         duel_type=duel_type,
+                         loss='categorical_crossentropy',
+                         output_activation='softmax').create_model()
+        self.model.summary()
+
+        if isinstance(weight_path, type(None)):
+            path = glob(f'./Keras_Save/keras_PG*.h5')
+            self.weight_path = path[0]
+        elif not isinstance(weight_path, type(None)) and isinstance(weight_path, str):
+            self.weight_path = weight_path
+            if os.path.isfile(self.weight_path):
+                print(f'Restoring Weight from {self.weight_path}')
+                self.restore_weight(self.weight_path)
+
+        tb_path = os.path.join(os.path.dirname(self.weight_path), 'Tensorboard')
+        self.tb = ModifiedTensorBoard(log_dir=tb_path)
+        self.tb.set_model(self.model)
+
+        # add callbacks
+        self.callbacks = callbacks + [self.tb]
+
+        # all saving parameters
+        self.action = []
+        self.reward = []
+        self.state = []
+
+    @staticmethod
+    def trans_obser(obser, feature, mode):
+        if mode == 'picture':
+            return obser
+        elif mode == 'feature':
+            obser = feature
+        elif mode == 'mix':
+            obser = [obser, feature]
+        return obser
+
+    def choose_action(self, x):
+        action_distribution = self.model.predict_on_batch([[x[0]], [x[1]]])[0]
+        action = np.random.choice(self.action_n, 1, p=action_distribution)[0]
+        return action
+
+    def store_transition(self, s, a, r):
+        self.reward.append(self.reward_modify(r))
+        # make one-hot encoding
+        self.action.append(a)
+        self.state.append(s)
+
+    def get_discounted_rewards(self, rewards):
+        discounted_r = []
+        cumulative_r = 0
+        for r in rewards[::-1]:
+            cumulative_r = r + cumulative_r * self.gamma
+            discounted_r.insert(0, cumulative_r)
+
+        # normalized rewards
+        mean_r = np.mean(discounted_r)
+        std_r = np.std(discounted_r)
+        norm_r = (discounted_r - mean_r) / (std_r + 1e-8)
+
+        return norm_r
+
+    def learn(self):
+
+        episode_length = len(self.state)
+        discounted_r = self.get_discounted_rewards(self.reward)
+
+        discounted_r -= np.mean(discounted_r)
+        discounted_r /= np.std(discounted_r)
+
+        advantages = np.zeros((episode_length, self.action_n))
+
+        picture = []
+        feature = []
+        for i in range(episode_length):
+            picture.append(self.state[i][0])
+            feature.append(self.state[i][1])
+            advantages[i][self.action[i]] = discounted_r[i]
+
+        picture = self.data_process(np.asarray(picture))
+        feature = np.asarray(feature)
+        states = [picture, feature]
+        self.model.fit(states, advantages,
+                       batch_size=self.batch_size,
+                       verbose=1,
+                       callbacks=self.callbacks)
+
+        # reset all saved parameters
+        self.reward.clear()
+        self.action.clear()
+        self.state.clear()
+
+        self.tb.step = self.step_counter
+        self.step_counter += 1
+
+    def save_weight(self, path=None, overwrite=True):
+        self.model.save_weights(path, overwrite=overwrite)
+
+    def restore_weight(self, path=None):
+        self.model.load_weights(path)
 
 
 if __name__ == '__main__':
