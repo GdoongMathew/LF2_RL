@@ -442,9 +442,10 @@ class PolicyGradient(BaseModel):
         cumulative_r = 0
         for r in rewards[::-1]:
             cumulative_r = r + cumulative_r * self.gamma
-            discounted_r.insert(0, cumulative_r)
+            discounted_r.append(cumulative_r)
 
         # normalized rewards
+        discounted_r.reverse()
         mean_r = np.mean(discounted_r)
         std_r = np.std(discounted_r)
         norm_r = (discounted_r - mean_r) / (std_r + 1e-8)
@@ -471,8 +472,10 @@ class PolicyGradient(BaseModel):
         picture = self.data_process(np.asarray(picture))
         feature = np.asarray(feature)
         states = [picture, feature]
+        epochs = episode_length // self.batch_size
         self.model.fit(states, advantages,
                        batch_size=self.batch_size,
+                       epochs=epochs,
                        verbose=1,
                        callbacks=self.callbacks)
 
