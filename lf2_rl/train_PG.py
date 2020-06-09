@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     agent = Agent(act_n, state_n, 0,
                   weight_path=f'./Keras_Save/keras_dqn.h5',
-                  batch_size=8,
+                  batch_size=2,
                   learning_rate=learning_rate,
                   momentum=0.9,
                   save_freq=200,
