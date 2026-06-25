@@ -292,7 +292,7 @@ class Lf2Env(gym.Env):
                 facing=self.my_player.facing,
             )
         time.sleep(self.reset_skip_sec)
-        press_key(["f4", default_ok], interval=1.0)
+        press_key(["f4", *default_ok], interval=1.0)
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)

@@ -11,6 +11,7 @@ from dataclasses import field, dataclass
 from sys import byteorder
 import struct
 from ..config import LF2_GYM_CONFIG
+import time
 
 
 from lf2_gym.characters import Characters, CHARACTER_MOVES, LogicBtn, Move, vk
@@ -35,13 +36,18 @@ PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
 
 
-def press_key(keys: list[str], interval: float = 0.05):
-    for key in keys:
-        pyautogui.press(
-            key,
-            interval=interval,
-        )
-
+def press_key(keys: list[str], interval: float = 0.1):
+    last_key = ""
+    if keys is not None:
+        for key in keys:
+            if key == last_key:
+                # to prevent not sending key event if two consecutive identical keys.
+                pyautogui.keyUp(key)
+            pyautogui.keyDown(key)
+            last_key = key
+        time.sleep(interval)
+        for key in keys:
+            pyautogui.keyUp(key)
 
 class ProcessWR:
     # Reading/Writing process memory from certain memory address
