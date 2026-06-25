@@ -241,7 +241,7 @@ class Player:
             for index, key in enumerate(Characters)
         }
         for name, address in char_address.items():
-            if address == self.address:
+            if address == self.data_address:
                 return name
         return None
 
