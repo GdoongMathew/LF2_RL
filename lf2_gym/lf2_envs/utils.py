@@ -14,6 +14,7 @@ from ..config import LF2_GYM_CONFIG
 
 
 from lf2_gym.characters import Characters, CHARACTER_MOVES, LogicBtn, Move, vk
+from lf2_gym.loggers import get_logger
 from lf2_gym.const import (
     LF2AbsAddress,
     LF2PlayerAddressOffset,
@@ -23,7 +24,6 @@ from lf2_gym.const import (
     COMPUTER_ADDRESSES,
     CPLAYER_IN_GAME,
     PLAYER_IN_GAME,
-    DATA_FILE_COUNT,
 )
 import pyautogui
 import ctypes
@@ -35,10 +35,11 @@ PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
 
 
-def press_key(keys: list[str]):
+def press_key(keys: list[str], interval: float = 0.05):
     for key in keys:
         pyautogui.press(
             key,
+            interval=interval,
         )
 
 
@@ -158,6 +159,12 @@ class Player:
         self.character: Characters = character
         self.update()
 
+    @property
+    def logger(self):
+        if not hasattr(self, "_logger"):
+            self._logger = get_logger(f"Player {self.character}")
+        return self._logger
+
     def address_shift(self, shift: int):
         return self.address + shift
 
@@ -247,6 +254,7 @@ class Player:
     def action_keys(self, action_index: int) -> list[str]:
         """Return the key for the given action."""
         move = self.moves[action_index]
+        self.logger.info(f"Action {action_index}: {move.name} -> {move.sequence}")
         return resolve_move_key(move, KeyMap.for_player(self.index), self.facing)
 
 
@@ -270,9 +278,11 @@ class KeyMap:
             raise ValueError(f"Player ID must be less than 3, get {player_id}.")
 
         with open(control_txt.as_posix(), "r") as f:
-            line = f.read().splitlines()[player_id + 1]
+            for i, line in enumerate(f):
+                if i == player_id:
+                    codes = [int(x) for x in line.split(" ") if x not in (" ", "\n")]
+                    break
 
-        codes = [int(x) for x in line.split() if x.strip()]
         return {
             LogicBtn.Up: vk[codes[1]],
             LogicBtn.Down: vk[codes[2]],
@@ -292,6 +302,6 @@ def resolve_move_key(
     out = []
     for btn in move.sequence:
         if btn is LogicBtn.Dir:
-            btn = LogicBtn(facing.capitalize())
+            btn = LogicBtn(facing.lower())
         out.append(keymap[btn])
     return out

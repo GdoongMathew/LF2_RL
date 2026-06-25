@@ -11,7 +11,7 @@ formatter = logging.Formatter(
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
-    """Get a logger with the given name in `DeepAIS` namespace
+    """Get a logger with the given name in `lf2-gym` namespace
     The default handler is TimedRotatingFileHandler and StreamHandler.
     The formatting of message is "%(asctime)s - %(levelname)-8s - %(name)-12s - %(message)s"
 
@@ -29,7 +29,7 @@ def get_logger(name: str | None = None) -> logging.Logger:
 
 
     """
-    logger = logging.getLogger("DeepAIS")
+    logger = logging.getLogger("lf2-gym")
     if not logger.hasHandlers():
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)

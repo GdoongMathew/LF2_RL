@@ -289,8 +289,10 @@ class Lf2Env(gym.Env):
             default_ok = resolve_move_key(
                 Move(name="attack", sequence=(LogicBtn.Attack,)),
                 KeyMap.for_player(self.my_player_id),
+                facing=self.my_player.facing,
             )
-        press_key(["f4", default_ok])
+        time.sleep(self.reset_skip_sec)
+        press_key(["f4", default_ok], interval=1.0)
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
         # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
@@ -300,7 +302,6 @@ class Lf2Env(gym.Env):
         self.restart = True
         self.game_over = False
         self.frames.clear()
-        time.sleep(self.reset_skip_sec)
         self.reward = 0
         self.bot_attack = 0
         print("Env reset.")
@@ -350,7 +351,9 @@ class Lf2Env(gym.Env):
             else:
                 enemy_hp.append(hp_norm)
 
-        self.reward = (sum(team_hp) / len(team_hp)) - (sum(enemy_hp) / len(enemy_hp))
+        team_avg = sum(team_hp) / len(team_hp) if team_hp else 0.0
+        enemy_avg = sum(enemy_hp) / len(enemy_hp) if enemy_hp else 0.0
+        self.reward = team_avg - enemy_avg
         mp_reward = (self.my_player.mp_max - self.my_player.mp) / self.my_player.mp_max
         self.reward += mp_reward
 
