@@ -35,7 +35,7 @@ PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
 
 
-def press_key(keys: str | list[str]):
+def press_key(keys: list[str]):
     for key in keys:
         pyautogui.press(
             key,

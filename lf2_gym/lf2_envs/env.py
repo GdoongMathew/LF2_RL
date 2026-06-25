@@ -1,7 +1,8 @@
 from typing import Literal, cast, Any
 
+from lf2_gym.characters import Move, LogicBtn
 from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
-from lf2_gym.lf2_envs.utils import Player, press_key
+from lf2_gym.lf2_envs.utils import Player, press_key, resolve_move_key, KeyMap
 from mss import MSS
 from win32api import GetSystemMetrics
 import numpy as np
@@ -100,10 +101,7 @@ class Lf2Env(gym.Env):
         self.reward = 0
         self.bot_attack = 0
         while True:
-            if self.gray_scale:
-                img_last_dim = 1
-            else:
-                img_last_dim = 3
+            channels = 1 if self.gray_scale else 3
             if len(self.frames) != 0:
                 # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
                 low = [0, 0, 0, 0, 0, -np.inf] * self.num_players
@@ -114,13 +112,22 @@ class Lf2Env(gym.Env):
                     self.observation_space = spaces.Dict(
                         {
                             "Info": info,
-                            "Game_Screen": spaces.Box(low=0, high=255, shape=(self.img_h, self.img_w, img_last_dim)),
+                            "Game_Screen": spaces.Box(
+                                low=0,
+                                high=255,
+                                shape=(channels, self.img_h, self.img_w),
+                            ),
                         }
                     )
                 elif self.mode == "info":
                     self.observation_space = info
                 elif self.mode == "picture":
-                    self.observation_space = spaces.Box(low=0, high=255, shape=(self.img_h, self.img_w, img_last_dim))
+                    self.observation_space = spaces.Box(
+                        low=0,
+                        high=255,
+                        shape=(channels, self.img_h, self.img_w),
+                        dtype=np.uint8,
+                    )
                 else:
                     raise ValueError("Not Supported mode.... Exiting.")
                 break
@@ -162,6 +169,10 @@ class Lf2Env(gym.Env):
             img_stack = np.stack(self.frames, axis=-1)
             img_stack = np.multiply(img_stack, split_one(self.frame_stack))
             ob = np.sum(img_stack, axis=-1)
+            if not self.gray_scale:
+                ob = np.transpose(ob, (2, 0, 1))
+            else:
+                ob = ob[None, ...]
 
         elif self.mode == "mix":
             # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
@@ -255,12 +266,12 @@ class Lf2Env(gym.Env):
         while not self.kill_thread:
             time.sleep(0.01)
             team = []
-            for player in self.active_players:
+            for player in filter(lambda p: p is not None, self.players):
                 player.update()
                 if player.is_active and player.is_alive:
                     team.append(player.team)
             self.restart = False
-            self.game_over = True if len(set(team)) == 1 else False
+            self.game_over = len(team) > 0 and len(set(team)) == 1
 
     def reset(
         self,
@@ -275,7 +286,10 @@ class Lf2Env(gym.Env):
         super().reset(seed=seed)
         default_ok = options.get("default_ok", None) if isinstance(options, dict) else None
         if default_ok is None:
-            default_ok = self.my_player.action_keys(action_index=self.my_player.moves.index("attack"))[0]
+            default_ok = resolve_move_key(
+                Move(name="attack", sequence=(LogicBtn.Attack,)),
+                KeyMap.for_player(self.my_player_id),
+            )
         press_key(["f4", default_ok])
         # Todo figure out how to send keyboard event to a non-active windows.
         # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
@@ -290,7 +304,7 @@ class Lf2Env(gym.Env):
         self.reward = 0
         self.bot_attack = 0
         print("Env reset.")
-        return self.get_state()
+        return self.get_state(), self.get_info()
 
     def step(self, action_id):
         """
@@ -298,8 +312,7 @@ class Lf2Env(gym.Env):
         :param action_id: an action id from the action space
         :return: observation, reward, done, info
         """
-        for key in self.my_player.action_keys(action_index=action_id):
-            press_key(key)
+        press_key(self.my_player.action_keys(action_id))
 
         ob = self.get_state()
         reward = self.get_reward()
