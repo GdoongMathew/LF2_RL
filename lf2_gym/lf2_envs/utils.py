@@ -155,7 +155,7 @@ class Player:
         )
         character = self._get_player_character()
         assert character is not None, "Failed to get character"
-        self.character = character
+        self.character: Characters = character
         self.update()
 
     def address_shift(self, shift: int):
@@ -228,19 +228,15 @@ class Player:
             1,
         )
 
-    def _get_player_character(self) -> str | None:
+    def _get_player_character(self) -> Characters | None:
         """
         Get the character of the player.
         :return: the name of the character
         """
         _data_address = self._game_reading.read_int(LF2AbsAddress.DATA_POINTER)
-        data_file = [self._game_reading.read_int(_data_address + i * 4) for i in range(DATA_FILE_COUNT)]
 
-        char_address = {
-            key: data_file[index]
-            for index, key in enumerate(Characters)
-        }
-        for name, address in char_address.items():
+        for i, name in enumerate(Characters):
+            address = self._game_reading.read_int(_data_address + i * 4)
             if address == self.data_address:
                 return name
         return None
