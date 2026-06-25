@@ -121,6 +121,7 @@ class Player:
     character: str = field(init=False)
 
     address: int = field(init=False)
+    data_address: int = field(init=False)
 
     kills: int = field(init=False)
     attacks: int = field(init=False)
@@ -149,8 +150,11 @@ class Player:
 
         address_table = COMPUTER_ADDRESSES if self.is_computer else PLAYER_ADDRESSES
         self.address = self._game_reading.read_int(address_table[self.index])
+        self.data_address = self._game_reading.read_int(
+            self.address_shift(LF2PlayerAddressOffset.PDATA_POINTER)
+        )
         character = self._get_player_character()
-        # assert character is not None, "Failed to get character"
+        assert character is not None, "Failed to get character"
         self.character = character
         self.update()
 
