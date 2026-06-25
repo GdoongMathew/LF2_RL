@@ -23,7 +23,8 @@ class Lf2GymConfig:
 
 def _read_config() -> Lf2GymConfig:
     config = configparser.ConfigParser()
-    config.read("./config/config.ini")
+    init_path = Path(__file__).parent / "lf2_envs" / "config" / "config.ini"
+    config.read(init_path)
     lf2_config = dict(**config["lf2_config"])
     lf2_config["exe"] = Path(lf2_config["exe"])
     lf2_config["fighter_id"] = int(lf2_config["fighter_id"])

@@ -255,13 +255,10 @@ class Lf2Env(gym.Env):
         while not self.kill_thread:
             time.sleep(0.01)
             team = []
-            for i in self.players:
-                player_i = self.players[i]
-                if player_i is None:
-                    continue
-                player_i.update_status(reset=self.restart)
-                if player_i.is_active and player_i.is_alive:
-                    team.append(player_i.Team)
+            for player in self.active_players:
+                player.update()
+                if player.is_active and player.is_alive:
+                    team.append(player.team)
             self.restart = False
             self.game_over = True if len(set(team)) == 1 else False
 

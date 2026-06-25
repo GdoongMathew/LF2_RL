@@ -214,6 +214,7 @@ class Player:
             setattr(self, attr, value)
 
     def update(self):
+        """Update the player status from the game memory."""
 
         base_stat_bytes = self.address_shift(LF2_BLOCK_STAT[0])
         stat_buffer = self._game_reading.read_block(base_stat_bytes, LF2_BLOCK_STAT[1])
@@ -229,10 +230,7 @@ class Player:
         )
 
     def _get_player_character(self) -> Characters | None:
-        """
-        Get the character of the player.
-        :return: the name of the character
-        """
+        """Get the character name of the player by comparing the data address with the character data addresses."""
         _data_address = self._game_reading.read_int(LF2AbsAddress.DATA_POINTER)
 
         for i, name in enumerate(Characters):
@@ -243,9 +241,11 @@ class Player:
 
     @property
     def moves(self) -> Sequence[Move]:
+        """Return the list of moves for the player's character."""
         return CHARACTER_MOVES[self.character]
 
-    def action_keys(self, action_index: int) -> str:
+    def action_keys(self, action_index: int) -> list[str]:
+        """Return the key for the given action."""
         move = self.moves[action_index]
         return resolve_move_key(move, KeyMap.for_player(self.index), self.facing)
 
@@ -288,10 +288,10 @@ def resolve_move_key(
     move: Move,
     keymap: dict[LogicBtn, str],
     facing: Literal["left", "right"],
-) -> str:
+) -> list[str]:
     out = []
     for btn in move.sequence:
         if btn is LogicBtn.Dir:
             btn = LogicBtn(facing.capitalize())
         out.append(keymap[btn])
-    return "".join(out)
+    return out
