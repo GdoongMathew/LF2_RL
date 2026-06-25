@@ -116,6 +116,7 @@ class Lf2Env(gym.Env):
                                 low=0,
                                 high=255,
                                 shape=(channels, self.img_h, self.img_w),
+                                dtype=np.uint8,
                             ),
                         }
                     )
@@ -177,10 +178,9 @@ class Lf2Env(gym.Env):
         elif self.mode == "mix":
             # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
             # img_stack = np.stack(self.frames, axis=-1)
-            _imgs = np.array(self.frames)
-            img_stack = self.img_weights[0] * _imgs[0] + self.img_weights[1] * _imgs[1] + self.img_weights[2] * _imgs[2]
-            # cv2.imshKey(1)
-            ob = dict(Game_Screen=img_stack.astype(np.int8), Info=self.get_players_state())
+            _imgs = np.stack(self.frames)
+            img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
+            ob = dict(Game_Screen=img_stack.astype(np.uint8), Info=self.get_players_state())
 
         else:
             # info mode
