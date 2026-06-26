@@ -3,6 +3,7 @@ from typing import Literal, cast, Any
 from lf2_gym.characters import Move, LogicBtn
 from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
 from lf2_gym.lf2_envs.utils import Player, press_key, resolve_move_key, KeyMap
+from lf2_gym.loggers import get_logger
 from mss import MSS
 from win32api import GetSystemMetrics
 import numpy as np
@@ -19,6 +20,8 @@ from gymnasium import spaces
 import gymnasium as gym
 
 pyautogui.FAILSAFE = False
+
+logger = get_logger(__name__)
 
 
 def split_one(num_interval=1):
@@ -266,7 +269,7 @@ class Lf2Env(gym.Env):
                 if player.is_active and player.is_alive:
                     team.append(player.team)
             self.restart = False
-            self.game_over = len(team) > 0 and len(set(team)) == 1
+            self.game_over = (len(team) > 0 and len(set(team)) == 1) or not self.my_player.is_alive
 
     def reset(
         self,

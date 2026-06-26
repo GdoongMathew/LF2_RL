@@ -34,7 +34,7 @@ def make_env(env_id, **kwargs):
 def main():
 
     env_id = "LittleFighter2-v0"
-    karg = dict(
+    kwargs = dict(
         frame_stack=3,
         frame_skip=1,
         reset_skip_sec=2,
@@ -44,24 +44,21 @@ def main():
     )
     num_cpu = 1
 
-    # lf2_env = Lf2Env(**karg)
-
-    lf2_env = gym.make(env_id, **karg)
+    lf2_env = gym.make(env_id, **kwargs)
 
     # discount factor
     gamma = 0.95
     # #
     # lf2_env = SubprocVecEnv([make_env(env_id, **karg) for i in range(num_cpu)])
-    save_root = r"LF2_RL_Model"
+    save_root = r"D:\log\lf2"
     model = PPO(
         "MultiInputPolicy",
         lf2_env,
         verbose=1,
-        batch_size=60,
+        batch_size=32,
         # prioritized_replay=True,
         gamma=gamma,
-        # full_tensorboard_log=True,
-        # tensorboard_log=os.path.join(save_root, 'tensorboard')
+        tensorboard_log=os.path.join(save_root, "tensorboard")
     )
     #
     print("Start learning")
