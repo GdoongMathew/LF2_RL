@@ -38,7 +38,7 @@ def main():
         frame_stack=3,
         frame_skip=1,
         reset_skip_sec=2,
-        mode="picture",
+        mode="mix",
         gray_scale=False,
         player_id=0,
     )
@@ -54,7 +54,7 @@ def main():
     # lf2_env = SubprocVecEnv([make_env(env_id, **karg) for i in range(num_cpu)])
     save_root = r"LF2_RL_Model"
     model = PPO(
-        "CnnPolicy",
+        "MultiInputPolicy",
         lf2_env,
         verbose=1,
         batch_size=60,

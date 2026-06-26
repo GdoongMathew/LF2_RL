@@ -104,31 +104,22 @@ class Lf2Env(gym.Env):
             channels = 1 if self.gray_scale else 3
             if len(self.frames) != 0:
                 # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-                low = [0, 0, 0, 0, 0, -np.inf] * self.num_players
-                high = [self.my_player.mp_max, self.my_player.hp_max, 1, np.inf, np.inf, 0] * self.num_players
-                info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int32)
+                low = [[0, 0, 0, 0, 0, -np.inf]] * self.num_players
+                high = [[self.my_player.mp_max, self.my_player.hp_max, 1, np.inf, np.inf, 0]] * self.num_players
+                info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int16)
+                image = spaces.Box(
+                    low=0,
+                    high=255,
+                    shape=(channels, self.img_h, self.img_w),
+                    dtype=np.uint8,
+                )
 
                 if self.mode == "mix":
-                    self.observation_space = spaces.Dict(
-                        {
-                            "Info": info,
-                            "Game_Screen": spaces.Box(
-                                low=0,
-                                high=255,
-                                shape=(channels, self.img_h, self.img_w),
-                                dtype=np.uint8,
-                            ),
-                        }
-                    )
+                    self.observation_space = spaces.Dict({"Info": info, "Game_Screen": image})
                 elif self.mode == "info":
                     self.observation_space = info
                 elif self.mode == "picture":
-                    self.observation_space = spaces.Box(
-                        low=0,
-                        high=255,
-                        shape=(channels, self.img_h, self.img_w),
-                        dtype=np.uint8,
-                    )
+                    self.observation_space = image
                 else:
                     raise ValueError("Not Supported mode.... Exiting.")
                 break
@@ -180,6 +171,10 @@ class Lf2Env(gym.Env):
             # img_stack = np.stack(self.frames, axis=-1)
             _imgs = np.stack(self.frames)
             img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
+            if not self.gray_scale:
+                img_stack = np.transpose(img_stack, (2, 0, 1))
+            else:
+                img_stack = img_stack[None, ...]
             ob = dict(Game_Screen=img_stack.astype(np.uint8), Info=self.get_players_state())
 
         else:
@@ -204,7 +199,7 @@ class Lf2Env(gym.Env):
                 _player_state(self.my_player),
                 *[_player_state(p) for p in self.active_players if p is not self.my_player],
             ],
-            dtype=np.int32,
+            dtype=np.int16,
         )
 
     def update_game_img(self):
