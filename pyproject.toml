@@ -22,17 +22,31 @@ dependencies = [
 
 [project.optional-dependencies]
 
+# Multi-agent (in-window 4-player) environment
+multiagent = [
+    "pettingzoo>=1.24",
+]
+
+# Distributed async RL training (DGX learner + Windows actors)
+rl = [
+    "lf2_gym[multiagent]",
+    "ray[rllib]>=2.9",
+    "torch",
+]
+
 # Development dependencies
 dev = [
     "pytest",
     "pytest-mock",
     "pytest-cov",
     "packaging",
+    "ruff",
+    "pettingzoo>=1.24",
 ]
 
 
 # Full installation
-all = ["lf2_gym[dev]"]
+all = ["lf2_gym[dev,multiagent,rl]"]
 
 [tool.setuptools-git-versioning]
 enabled = true

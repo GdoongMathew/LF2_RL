@@ -1,35 +1,67 @@
-from typing import Literal, cast, Any
-
-from lf2_gym.characters import Move, LogicBtn
-from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
-from lf2_gym.lf2_envs.utils import Player, press_key, resolve_move_key, KeyMap
-from mss import MSS
-from win32api import GetSystemMetrics
-import numpy as np
-from collections import deque
-import win32gui
-import win32con
-import win32ui
-import pyautogui
 import time
-import cv2
-import threading
+from typing import Any, Literal, cast
 
-from gymnasium import spaces
+import cv2
 import gymnasium as gym
+import numpy as np
+import pyautogui
+from gymnasium import spaces
+
+from lf2_gym.characters import LogicBtn, Move
+from lf2_gym.lf2_envs.controller import Lf2GameController, split_one
+from lf2_gym.lf2_envs.utils import KeyMap, Player, resolve_move_key
+from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
 
 pyautogui.FAILSAFE = False
 
+__all__ = ["Lf2Env", "compute_reward", "split_one"]
 
-def split_one(num_interval=1):
-    num_list = np.sinh(list(i + 1 for i in range(num_interval)), dtype=float)
-    return num_list / np.sum(num_list)
+
+def compute_reward(
+    my_player: Player,
+    active_players: tuple[Player, ...],
+    prev_attacks: int,
+) -> tuple[float, int]:
+    """Per-player reward shaping shared by single- and multi-agent envs.
+
+    Returns ``(reward, updated_attack_count)``.
+    """
+    enemy_hp = []
+    team_hp = []
+
+    for player in active_players:
+        hp_norm = player.hp * 10 / player.hp_max
+        if player.team == my_player.team:
+            team_hp.append(hp_norm)
+        else:
+            enemy_hp.append(hp_norm)
+
+    team_avg = sum(team_hp) / len(team_hp) if team_hp else 0.0
+    enemy_avg = sum(enemy_hp) / len(enemy_hp) if enemy_hp else 0.0
+    reward = team_avg - enemy_avg
+    mp_reward = (my_player.mp_max - my_player.mp) / my_player.mp_max
+    reward += mp_reward
+
+    # death penalty
+    if not my_player.is_alive:
+        reward -= 50
+
+    # increase reward when increasing attacks.
+    if my_player.attacks != prev_attacks:
+        reward += (my_player.attacks - prev_attacks) / 10
+        prev_attacks = my_player.attacks
+
+    return reward, prev_attacks
 
 
 class Lf2Env(gym.Env):
     """
     Crop a image from the gaming window, and return all players info as well as
     the current image shown on the display.
+
+    Game I/O (window capture, memory reads, key sending) is delegated to a
+    shared :class:`~lf2_gym.lf2_envs.controller.Lf2GameController` so the same
+    machinery can back the multi-agent environment as well.
     """
 
     metadata = {"render.modes": ["human", "console", "rgb_array"]}
@@ -45,6 +77,7 @@ class Lf2Env(gym.Env):
         gray_scale=True,
         mode: Literal["info", "picture", "mix"] = "mix",
         basic_action=False,
+        controller: Lf2GameController | None = None,
     ):
         """
         Initialize the gym environment
@@ -57,126 +90,90 @@ class Lf2Env(gym.Env):
         :param gray_scale: convert recording image from rgb to gray scale
         :param mode: observation output mode.
         :param basic_action: only output L,R,U,D,A,D,J
+        :param controller: optional shared game controller (created if omitted).
         """
         super(Lf2Env, self).__init__()
 
-        self.window_name = windows_name
-        self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
-        self.PyCWnd1 = win32ui.FindWindow(None, windows_name)
-        self.PyCWnd1.SetForegroundWindow()
-        self.PyCWnd1.SetFocus()
-        self.kill_thread = False
+        self.controller = controller or Lf2GameController(
+            windows_name=windows_name,
+            downscale=downscale,
+            frame_stack=frame_stack,
+            frame_skip=frame_skip,
+            gray_scale=gray_scale,
+        )
         self.basic_action = basic_action
-        self.sct = MSS()
-
-        self.players: list[None | Player] = [None] * 8
-        self.find_players()
 
         self.my_player_id = player_id
-        self.my_player: Player = cast(Player, self.players[player_id])
+        self.my_player: Player = cast(Player, self.controller.players[player_id])
 
-        self.gaming_screen = None
-        self.game_over = False
-        self.restart = True
-
-        self.img_h = 0
-        self.img_w = 0
-        self.frame_skip = frame_skip
-        self.downscale = downscale
-        self.gray_scale = gray_scale
-
-        self.frame_stack = frame_stack
-        self.img_weights = split_one(self.frame_stack)
-        self.frames = deque([], maxlen=self.frame_stack)
-        # Immortal seconds before every rounds.
         self.reset_skip_sec = reset_skip_sec
-
-        self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
-        self.recording_thread.start()
-        self.player_thread = threading.Thread(target=self.update_players, daemon=True)
-        self.player_thread.start()
 
         self.action_space = spaces.Discrete(len(self.my_player.moves))
         self.mode = mode
         self.reward = 0
         self.bot_attack = 0
-        while True:
-            channels = 1 if self.gray_scale else 3
-            if len(self.frames) != 0:
-                # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-                low = [[0, 0, 0, 0, 0, -np.inf]] * self.num_players
-                high = [[self.my_player.mp_max, self.my_player.hp_max, 1, np.inf, np.inf, 0]] * self.num_players
-                info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int16)
-                image = spaces.Box(
-                    low=0,
-                    high=255,
-                    shape=(channels, self.img_h, self.img_w),
-                    dtype=np.uint8,
-                )
 
-                if self.mode == "mix":
-                    self.observation_space = spaces.Dict({"Info": info, "Game_Screen": image})
-                elif self.mode == "info":
-                    self.observation_space = info
-                elif self.mode == "picture":
-                    self.observation_space = image
-                else:
-                    raise ValueError("Not Supported mode.... Exiting.")
-                break
+        channels = self.controller.channels
+        # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
+        low = [[0, 0, 0, 0, 0, -np.inf]] * self.num_players
+        high = [[self.my_player.mp_max, self.my_player.hp_max, 1, np.inf, np.inf, 0]] * self.num_players
+        info = spaces.Box(low=np.array(low), high=np.array(high), dtype=np.int16)
+        image = spaces.Box(
+            low=0,
+            high=255,
+            shape=(channels, self.img_h, self.img_w),
+            dtype=np.uint8,
+        )
+
+        if self.mode == "mix":
+            self.observation_space = spaces.Dict({"Info": info, "Game_Screen": image})
+        elif self.mode == "info":
+            self.observation_space = info
+        elif self.mode == "picture":
+            self.observation_space = image
+        else:
+            raise ValueError("Not Supported mode.... Exiting.")
         print("Lf2 Environment initialized.")
 
+    # ------------------------------------------------------- controller proxies
     @property
     def num_players(self) -> int:
-        return len(self.active_players)
+        return self.controller.num_players
 
     @property
     def active_players(self) -> tuple[Player, ...]:
-        return tuple(p for p in self.players if p is not None and p.is_active)
+        return self.controller.active_players
 
-    def find_players(self):
-        for index, player in enumerate(self.players):
-            computer, human = Player(
-                game_hwnd=self.game_hwnd,
-                index=index,
-                is_computer=True,
-            ), Player(
-                game_hwnd=self.game_hwnd,
-                index=index,
-                is_computer=False,
-            )
-            if computer.is_active:
-                self.players[index] = computer
-            elif human.is_active:
-                self.players[index] = human
-            else:
-                self.players[index] = None
+    @property
+    def img_h(self) -> int:
+        return self.controller.img_h
+
+    @property
+    def img_w(self) -> int:
+        return self.controller.img_w
+
+    @property
+    def gray_scale(self) -> bool:
+        return self.controller.gray_scale
+
+    @property
+    def gaming_screen(self):
+        return self.controller.gaming_screen
+
+    @property
+    def game_over(self) -> bool:
+        return self.controller.game_over
+
+    @game_over.setter
+    def game_over(self, value: bool) -> None:
+        self.controller.game_over = value
 
     def get_state(self):
         # return the current state of the game
-        if self.mode in ["picture", "mix"]:
-            while len(self.frames) < self.frame_stack:
-                time.sleep(0.001)
-
         if self.mode == "picture":
-            img_stack = np.stack(self.frames, axis=-1)
-            img_stack = np.multiply(img_stack, split_one(self.frame_stack))
-            ob = np.sum(img_stack, axis=-1)
-            if not self.gray_scale:
-                ob = np.transpose(ob, (2, 0, 1))
-            else:
-                ob = ob[None, ...]
-
+            ob = self.controller.get_image_obs()
         elif self.mode == "mix":
-            # my_mp, my_hp, my_facing, my_x, my_y, my_z, [enemy_x, enemy_y, enemy_z]
-            # img_stack = np.stack(self.frames, axis=-1)
-            _imgs = np.stack(self.frames)
-            img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
-            if not self.gray_scale:
-                img_stack = np.transpose(img_stack, (2, 0, 1))
-            else:
-                img_stack = img_stack[None, ...]
-            ob = dict(Game_Screen=img_stack.astype(np.uint8), Info=self.get_players_state())
-
+            ob = dict(Game_Screen=self.controller.get_image_obs(), Info=self.get_players_state())
         else:
             # info mode
             ob = self.get_players_state()
@@ -184,89 +181,7 @@ class Lf2Env(gym.Env):
         return ob
 
     def get_players_state(self) -> np.ndarray:
-        def _player_state(player: Player) -> list[int]:
-            return [
-                player.mp,
-                player.hp,
-                int(bool.from_bytes(player._facing_bytes)),
-                player.x_pos,
-                player.y_pos,
-                player.z_pos,
-            ]
-
-        return np.asarray(
-            [
-                _player_state(self.my_player),
-                *[_player_state(p) for p in self.active_players if p is not self.my_player],
-            ],
-            dtype=np.int16,
-        )
-
-    def update_game_img(self):
-        """
-        Update the current gaming scene
-        """
-        skip_i = 0
-        last_frame = np.array([0])
-        while not self.kill_thread:
-            tup = win32gui.GetWindowPlacement(self.game_hwnd)
-
-            # check if the windows is in max size.
-            if tup[1] == win32con.SW_SHOWMAXIMIZED:
-                w = GetSystemMetrics(0)
-                h = GetSystemMetrics(1)
-                rect = [0, 0, w, h]
-            elif tup[1] == win32con.SW_SHOWNORMAL:
-                rect = list(win32gui.GetWindowRect(self.game_hwnd))
-            else:
-                continue
-            h = rect[3] - rect[1]
-            pos = {
-                "top": int(rect[1] + h * 0.266),
-                "left": int(rect[0] + 1),
-                "height": int(((rect[3] - rect[1]) * 2 / 3) - 2),
-                "width": int(rect[2] - rect[0]),
-            }
-
-            # img color in BGR order
-            screen_shot = np.array(self.sct.grab(pos), np.uint8)[:, :, :3]
-
-            if np.array_equal(last_frame, screen_shot):
-                # refresh until new frame exists.
-                continue
-            self.gaming_screen = screen_shot
-
-            if not self.img_h:
-                shape = np.array(np.shape(self.gaming_screen)[:2]) / self.downscale
-                self.img_h = int(shape[0])  # 500
-                self.img_w = int(shape[1])  # 996
-                print("img dimension: H {} W {}".format(self.img_h, self.img_w))
-
-            frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
-            if self.gray_scale:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            # skip this frame
-            if skip_i >= self.frame_skip:
-                self.frames.append(frame)
-                skip_i = 0
-            else:
-                skip_i += 1
-            last_frame = screen_shot.copy()
-            time.sleep(0.01)
-
-    def update_players(self):
-        """
-        Return player status
-        """
-        while not self.kill_thread:
-            time.sleep(0.01)
-            team = []
-            for player in filter(lambda p: p is not None, self.players):
-                player.update()
-                if player.is_active and player.is_alive:
-                    team.append(player.team)
-            self.restart = False
-            self.game_over = len(team) > 0 and len(set(team)) == 1
+        return self.controller.get_players_state(self.my_player)
 
     def reset(
         self,
@@ -287,16 +202,8 @@ class Lf2Env(gym.Env):
                 facing=self.my_player.facing,
             )
         time.sleep(self.reset_skip_sec)
-        press_key(["f4", *default_ok], interval=1.0)
-        # Todo figure out how to send keyboard event to a non-active windows.
-        # chile_hwnd = win32gui.GetWindow(self.game_hwnd, win32con.GW_CHILD)
-        # PostMessage(chile_hwnd, win32con.WM_KEYDOWN, win32con.VK_F4, 0)
-        # PostMessage(chile_hwnd, win32con.WM_KEYUP, win32con.VK_F4, 0)
-        # PostMessage(chile_hwnd, win32con.WM_CHAR, default_ok, 0)
+        self.controller.reset_round(default_ok)
 
-        self.restart = True
-        self.game_over = False
-        self.frames.clear()
         self.reward = 0
         self.bot_attack = 0
         print("Env reset.")
@@ -308,7 +215,7 @@ class Lf2Env(gym.Env):
         :param action_id: an action id from the action space
         :return: observation, reward, done, info
         """
-        press_key(self.my_player.action_keys(action_id))
+        self.controller.press_player_action(self.my_player, action_id)
 
         ob = self.get_state()
         reward = self.get_reward()
@@ -336,32 +243,11 @@ class Lf2Env(gym.Env):
         Calculate the corresponding rewards of the current state.
         :return: reward
         """
-        enemy_hp = []
-        team_hp = []
-
-        for player in self.active_players:
-            hp_norm = player.hp * 10 / player.hp_max
-            if player.team == self.my_player.team:
-                team_hp.append(hp_norm)
-            else:
-                enemy_hp.append(hp_norm)
-
-        team_avg = sum(team_hp) / len(team_hp) if team_hp else 0.0
-        enemy_avg = sum(enemy_hp) / len(enemy_hp) if enemy_hp else 0.0
-        self.reward = team_avg - enemy_avg
-        mp_reward = (self.my_player.mp_max - self.my_player.mp) / self.my_player.mp_max
-        self.reward += mp_reward
-
-        # death penalty
-        if not self.my_player.is_alive:
-            self.reward -= 50
-
-        # increase reward when increasing attacks.
-        if self.my_player.attacks != self.bot_attack:
-            self.reward += (self.my_player.attacks - self.bot_attack) / 10
-            self.bot_attack = self.my_player.attacks
-
-        # Most simple reward?
+        self.reward, self.bot_attack = compute_reward(
+            self.my_player,
+            self.active_players,
+            self.bot_attack,
+        )
         return self.reward
 
     def get_info(self):
@@ -375,8 +261,7 @@ class Lf2Env(gym.Env):
         return info
 
     def close(self):
-        cv2.destroyAllWindows()
-        self.kill_thread = True
+        self.controller.close()
 
     def seed(self, seed=None):
         pass
@@ -393,7 +278,6 @@ if __name__ == "__main__":
     print(my_player_1.character)
 
     now = time.time()
-    # att_1 = ply1.sp_attact6()
     while 1:
 
         my_player.update()
@@ -401,7 +285,6 @@ if __name__ == "__main__":
 
         print(my_player.hp)
         print(my_player_1.hp)
-        # print(com_player.Hp)
         time.sleep(1)
 
         if time.time() - now >= 12000:
