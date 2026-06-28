@@ -14,10 +14,86 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
+from types import MappingProxyType
 
-from lf2_gym.characters import LogicBtn, Move, vk
+from lf2_gym.characters import LogicBtn, Move
 from lf2_gym.config import LF2_GYM_CONFIG
 
+vk = MappingProxyType({
+    0x31: "1",
+    0x32: "2",
+    0x33: "3",
+    0x34: "4",
+    0x35: "5",
+    0x36: "6",
+    0x37: "7",
+    0x38: "8",
+    0x39: "9",
+    0x30: "0",
+    0x41: "A",
+    0x42: "B",
+    0x43: "C",
+    0x44: "D",
+    0x45: "E",
+    0x46: "F",
+    0x47: "G",
+    0x48: "H",
+    0x49: "I",
+    0x4A: "J",
+    0x4B: "K",
+    0x4C: "L",
+    0x4D: "M",
+    0x4E: "N",
+    0x4F: "O",
+    0x50: "P",
+    0x51: "Q",
+    0x52: "R",
+    0x53: "S",
+    0x54: "T",
+    0x55: "U",
+    0x56: "V",
+    0x57: "W",
+    0x58: "X",
+    0x59: "Y",
+    0x5A: "Z",
+    0x70: "F1",
+    0x71: "F2",
+    0x72: "F3",
+    0x73: "F4",
+    0x74: "F5",
+    0x75: "F6",
+    0x76: "F7",
+    0x77: "F8",
+    0x78: "F9",
+    0x79: "F10",
+    0x7A: "F11",
+    0x7B: "F12",
+    0x26: "UP",
+    0x25: "LEFT",
+    0x27: "RIGHT",
+    0x28: "DOWN",
+    0x1B: "ESC",
+    0x20: "SPACE",
+    0x0D: "ENTER",
+    0x2D: "INSERT",
+    0x2E: "DELETE",
+    0x09: "TAB",
+    0xA2: "CTRL",
+    0xA3: "CONTROL",
+    0xA0: "SHIFT",
+    0x14: "CAPSLOCK",
+    0xBD: "SUBTRACT",
+    0xDB: "[",
+    0xDD: "]",
+    0xBA: ";",
+    0xDE: "'",
+    0xC0: "`",
+    0xDC: "\\",
+    0xBC: ",",
+    0xBE: ".",
+    0xBF: "/",
+    0xBB: "=",
+})
 
 @runtime_checkable
 class PlayerProtocol(Protocol):
@@ -67,8 +143,10 @@ class KeyMap:
         with open(control_txt.as_posix(), "r") as f:
             for i, line in enumerate(f):
                 if i == player_id:
-                    codes = [int(x) for x in line.split(" ") if x not in (" ", "\n")]
+                    codes = [int(x) for x in line.split()]
                     break
+        if len(codes) < 8:
+            raise ValueError(f"player {player_id} control line has {len(codes)} fields, need ≥ 8")
 
         return {
             LogicBtn.Up: vk[codes[1]],
