@@ -1,19 +1,22 @@
-"""Game-I/O controller for Little Fighter 2.
+"""Game-I/O controller for Little Fighter 2 (Windows-only).
 
-`Lf2GameController` owns every interaction with the running game / OS:
+:class:`Lf2GameController` owns every interaction with the running game / OS:
 
 * window handle + focus,
 * screen capture (``mss``) and the frame-stacking image pipeline,
-* per-player memory reads (via :class:`~lf2_gym.lf2_envs.utils.Player`),
+* per-player memory reads (via :class:`~lf2_gym.windows.player.Player`),
 * keystroke delivery for *any* of the (up to 4) human player slots.
 
 It is deliberately agnostic of the RL interface so it can be shared by:
 
-* the single-agent :class:`~lf2_gym.lf2_envs.env.Lf2Env`, and
-* the multi-agent :class:`~lf2_gym.lf2_envs.parallel_env.Lf2ParallelEnv`,
+* the single-agent :class:`~lf2_gym.windows.env.Lf2Env`, and
+* the multi-agent :class:`~lf2_gym.windows.parallel_env.Lf2ParallelEnv`,
 
 where the 4 in-window players are each driven by an agent that shares one
-centrally-trained policy.
+centrally-trained policy. The RL logic itself lives in the pure
+:mod:`lf2_gym.lf2_envs.base` module, which receives this controller via
+constructor injection — i.e. nothing in ``lf2_gym/lf2_envs/`` ever imports
+this module.
 """
 
 from __future__ import annotations
@@ -30,13 +33,17 @@ import win32ui
 from mss import MSS
 from win32api import GetSystemMetrics
 
-from lf2_gym.lf2_envs.utils import Player, press_key
-from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
+from lf2_gym.loggers import get_logger
+from lf2_gym.windows.keys import press_key
+from lf2_gym.windows.player import Player
+from lf2_gym.windows.winguiauto import winguiauto as winauto
+
+logger = get_logger(__name__)
 
 
 def split_one(num_interval: int = 1) -> np.ndarray:
     """Return normalized ``sinh`` weights used to collapse a frame stack."""
-    num_list = np.sinh(list(i + 1 for i in range(num_interval)), dtype=float)
+    num_list = np.sinh(list(i + 1 for i in range(num_interval)), dtype=np.float32)
     return num_list / np.sum(num_list)
 
 
@@ -71,8 +78,17 @@ class Lf2GameController:
         self.gray_scale = gray_scale
         self.frame_skip = frame_skip
         self.frame_stack = frame_stack
-        self.img_weights = split_one(self.frame_stack)
+        self.img_weights: np.ndarray = split_one(self.frame_stack)
         self.frames = deque([], maxlen=self.frame_stack)
+        # Pre-composed channels-first uint8 observation maintained by the
+        # capture thread so that step() never has to stack/weight frames.
+        self._composed_obs: np.ndarray | None = None
+        self._active_players: tuple[Player, ...] | None = None
+
+        # Pre-allocated per-player info buffer ([mp, hp, facing, x, y, z] per
+        # slot). The player thread writes rows in-place; step() just
+        # fancy-indexes the active rows out of it.
+        self._state_buf = np.zeros((len(self.players), 6), dtype=np.int16)
 
         self.game_over = False
         self.restart = True
@@ -98,7 +114,9 @@ class Lf2GameController:
 
     @property
     def active_players(self) -> tuple[Player, ...]:
-        return tuple(p for p in self.players if p is not None and p.is_active)
+        if not self._active_players:
+            self._active_players = tuple(p for p in self.players if p is not None and p.is_active)
+        return self._active_players
 
     def find_players(self) -> None:
         for index in range(len(self.players)):
@@ -113,42 +131,41 @@ class Lf2GameController:
 
     # ------------------------------------------------------------- observations
     def wait_for_frames(self) -> None:
-        """Block until the frame stack is full."""
-        while len(self.frames) < self.frame_stack:
+        """Block until the composed image observation is ready."""
+        while self._composed_obs is None:
             time.sleep(0.001)
+
+    def _compose_obs(self) -> None:
+        """Compute the weighted channels-first uint8 obs from ``self.frames``.
+
+        Runs in the capture thread so the hot ``get_image_obs`` path doesn't
+        pay for ``np.stack`` + a float ``tensordot`` + a uint8 cast.
+        """
+        _imgs = np.stack(self.frames)
+        img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
+        if self.gray_scale:
+            img_stack = img_stack[None, ...]
+        else:
+            img_stack = np.transpose(img_stack, (2, 0, 1))
+        # Publish via reference swap (atomic in CPython). Consumers see a
+        # fully-formed array without needing a lock.
+        self._composed_obs = img_stack.astype(np.uint8)
 
     def get_image_obs(self) -> np.ndarray:
         """Return the weighted, channels-first ``uint8`` stacked image."""
         self.wait_for_frames()
-        _imgs = np.stack(self.frames)
-        img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
-        if not self.gray_scale:
-            img_stack = np.transpose(img_stack, (2, 0, 1))
-        else:
-            img_stack = img_stack[None, ...]
-        return img_stack.astype(np.uint8)
-
-    @staticmethod
-    def player_state(player: Player) -> list[int]:
-        # mp, hp, facing, x, y, z
-        return [
-            player.mp,
-            player.hp,
-            int(bool.from_bytes(player._facing_bytes)),
-            player.x_pos,
-            player.y_pos,
-            player.z_pos,
-        ]
+        # ``.copy()`` keeps the "fresh array per call" contract — consumers
+        # (gym wrappers, replay buffers) historically assumed they own the
+        # returned buffer.
+        return self._composed_obs.copy()
 
     def get_players_state(self, my_player: Player) -> np.ndarray:
         """Per-agent info array, with ``my_player`` first then the rest."""
-        return np.asarray(
-            [
-                self.player_state(my_player),
-                *[self.player_state(p) for p in self.active_players if p is not my_player],
-            ],
-            dtype=np.int16,
-        )
+        my_idx = my_player.index
+        rows = [my_idx]
+        rows.extend(i for i in range(len(self.active_players)) if i != my_idx)
+        # Fancy index returns a fresh contiguous array — safe to hand back.
+        return self._state_buf[rows]
 
     # --------------------------------------------------------------- key sending
     def press_player_action(self, player: Player, action_id: int) -> None:
@@ -188,10 +205,9 @@ class Lf2GameController:
             self.gaming_screen = screen_shot
 
             if not self.img_h:
-                shape = np.array(np.shape(self.gaming_screen)[:2]) / self.downscale
-                self.img_h = int(shape[0])
-                self.img_w = int(shape[1])
-                print("img dimension: H {} W {}".format(self.img_h, self.img_w))
+                shape = (np.array(np.shape(self.gaming_screen)[:2]) / self.downscale).astype(int)
+                self.img_h, self.img_w = shape
+                logger.info("Screen capture initialized: H {} W {}".format(self.img_h, self.img_w))
 
             frame = cv2.resize(self.gaming_screen, (self.img_w, self.img_h))
             if self.gray_scale:
@@ -199,6 +215,8 @@ class Lf2GameController:
             if skip_i >= self.frame_skip:
                 self.frames.append(frame)
                 skip_i = 0
+                if len(self.frames) == self.frame_stack:
+                    self._compose_obs()
             else:
                 skip_i += 1
             last_frame = screen_shot.copy()
@@ -206,15 +224,26 @@ class Lf2GameController:
 
     def update_players(self) -> None:
         """Continuously refresh player memory state and game-over detection."""
+        buf = self._state_buf
         while not self.kill_thread:
             time.sleep(0.01)
+            if self.game_over:
+                continue
             team = []
-            for player in filter(lambda p: p is not None, self.players):
+            for i, player in enumerate(self.active_players):
                 player.update()
-                if player.is_active and player.is_alive:
+                # Mirror the refreshed Python attrs into the contiguous int16
+                # buffer so callers can fancy-index without rebuilding lists.
+                buf[i] = np.asarray(
+                    [player.mp, player.hp, player.facing_int, player.x_pos, player.y_pos, player.z_pos],
+                    dtype=np.int16,
+                )
+                if player.is_alive:
                     team.append(player.team)
             self.restart = False
             self.game_over = len(team) > 0 and len(set(team)) == 1
+            if self.game_over and not self.restart:
+                logger.info("Game over detected: all active players are on the same team.")
 
     # -------------------------------------------------------------------- rounds
     def reset_round(self, default_ok: list[str]) -> None:
@@ -223,6 +252,12 @@ class Lf2GameController:
         self.restart = True
         self.game_over = False
         self.frames.clear()
+        self._active_players = None
+        self.find_players()
+        # Force the next ``get_image_obs`` to block until a fresh stack has
+        # been composed post-restart, matching the original semantics of
+        # ``wait_for_frames`` after a deque clear.
+        self._composed_obs = None
 
     def close(self) -> None:
         cv2.destroyAllWindows()

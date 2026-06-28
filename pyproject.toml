@@ -10,24 +10,38 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
+    # Cross-platform core: enough for the Linux learner side to import
+    # ``lf2_gym``, ``lf2_gym.lf2_envs.base``, ``lf2_gym.spec`` and the
+    # pure RLlib glue (``lf2_rl.rllib.spec``, ``train``). Windows game
+    # I/O extras (``mss``, ``pyautogui``, ``pymem``, ``pywin32``,
+    # ``opencv-python``) live in the ``windows`` extra below and are
+    # gated by a ``platform_system == 'Windows'`` marker so installing
+    # them on Linux is a no-op.
     "gymnasium",
-    "mss",
-    "pyautogui",
-    "opencv-python>=3.3.1",
     "numpy",
-    "pymem",
     "configobj",
-    "pywin32",
 ]
 
 [project.optional-dependencies]
+
+# Windows-side game I/O (rollout EnvRunner nodes hosting the LF2 window).
+# Each entry is gated by a platform marker so a Linux ``pip install
+# lf2_gym[windows]`` silently skips them rather than failing.
+windows = [
+    "mss; platform_system == 'Windows'",
+    "pyautogui; platform_system == 'Windows'",
+    "pymem; platform_system == 'Windows'",
+    "pywin32; platform_system == 'Windows'",
+    "opencv-python>=3.3.1; platform_system == 'Windows'",
+]
 
 # Multi-agent (in-window 4-player) environment
 multiagent = [
     "pettingzoo>=1.24",
 ]
 
-# Distributed async RL training (DGX learner + Windows actors)
+# Distributed async RL training — learner side (DGX).
+# Workers additionally need ``[windows]`` installed.
 rl = [
     "lf2_gym[multiagent]",
     "ray[rllib]>=2.9",
@@ -45,8 +59,8 @@ dev = [
 ]
 
 
-# Full installation
-all = ["lf2_gym[dev,multiagent,rl]"]
+# Full installation (learner + worker on one box, typically Windows dev)
+all = ["lf2_gym[dev,multiagent,rl,windows]"]
 
 [tool.setuptools-git-versioning]
 enabled = true

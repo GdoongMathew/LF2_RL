@@ -1,8 +1,9 @@
-"""Logic tests for the multi-agent `Lf2ParallelEnv` using a fake controller.
+"""Logic tests for the multi-agent LF2 env using a fake controller.
 
-These run anywhere (no live game needed): a stub controller / players replace
-all game I/O, so we exercise the PettingZoo wiring, spaces, reward mapping and
-episode-termination behaviour deterministically.
+These run anywhere (no live game needed, no Windows libs required): a stub
+controller / players replace all game I/O, so we exercise the PettingZoo
+wiring, spaces, reward mapping and episode-termination behaviour
+deterministically against the pure :class:`Lf2ParallelEnvBase`.
 """
 from __future__ import annotations
 
@@ -11,7 +12,11 @@ import pytest
 
 pytest.importorskip("pettingzoo")
 
-from lf2_gym.lf2_envs.parallel_env import Lf2ParallelEnv  # noqa: E402
+# Import the pure base class (no win32 / pymem / mss / cv2 in its load
+# graph) so this test runs on Linux CI too. The concrete Windows wrapper
+# ``lf2_gym.windows.parallel_env.Lf2ParallelEnv`` only adds controller
+# construction on top.
+from lf2_gym.lf2_envs.base import Lf2ParallelEnvBase as Lf2ParallelEnv  # noqa: E402
 
 
 class FakePlayer:

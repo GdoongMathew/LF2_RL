@@ -67,7 +67,7 @@ def parse_block(buf: bytes, base: int, fields: list[tuple[str, int]]) -> dict[st
 @pytest.fixture(scope="session")
 def lf2_hwnd():
     """Window handle of a running LF2, or skip the test if not found."""
-    from lf2_gym.lf2_envs.winguiauto import winguiauto as winauto
+    from lf2_gym.windows.winguiauto import winguiauto as winauto
 
     try:
         return winauto.findTopWindow(wantedText=LF2_WINDOW_NAME)
@@ -78,7 +78,7 @@ def lf2_hwnd():
 @pytest.fixture(scope="session")
 def proc_wr(lf2_hwnd):
     """A ProcessWR bound to the live game (keyword-only win_handle)."""
-    from lf2_gym.lf2_envs.utils import ProcessWR
+    from lf2_gym.windows.process import ProcessWR
 
     return ProcessWR(win_handle=lf2_hwnd)
 
@@ -86,7 +86,7 @@ def proc_wr(lf2_hwnd):
 @pytest.fixture(scope="session")
 def player(lf2_hwnd):
     """A com Player(idx=0). Skips if it cannot be constructed/read."""
-    from lf2_gym.lf2_envs.utils import Player
+    from lf2_gym.windows.player import Player
 
     try:
         return Player(game_hwnd=lf2_hwnd, index=0, is_computer=True)

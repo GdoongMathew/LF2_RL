@@ -57,15 +57,15 @@ def main():
         "MultiInputPolicy",
         lf2_env,
         verbose=1,
-        batch_size=60,
+        batch_size=64,
         # prioritized_replay=True,
         gamma=gamma,
         # full_tensorboard_log=True,
-        # tensorboard_log=os.path.join(save_root, 'tensorboard')
+        tensorboard_log=r"D:\log\lf2\tensorboard"
     )
     #
     print("Start learning")
-    model.learn(total_timesteps=6000000)
+    model.learn(total_timesteps=6*10^7, progress_bar=True)
     model.save(save_root)
     #
 
