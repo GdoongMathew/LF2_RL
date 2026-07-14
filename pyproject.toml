@@ -1,0 +1,150 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lf2_gym"
+dynamic = ["version"]
+description = "LF2 Gym Environment"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    # Cross-platform core: enough for the Linux learner side to import
+    # ``lf2_gym``, ``lf2_gym.lf2_envs.base``, ``lf2_gym.spec`` and the
+    # pure RLlib glue (``lf2_rl.rllib.spec``, ``train``). Windows game
+    # I/O extras (``mss``, ``pyautogui``, ``pymem``, ``pywin32``,
+    # ``opencv-python``) live in the ``windows`` extra below and are
+    # gated by a ``platform_system == 'Windows'`` marker so installing
+    # them on Linux is a no-op.
+    "gymnasium",
+    "numpy",
+    "configobj",
+]
+
+[project.optional-dependencies]
+
+# Windows-side game I/O (rollout EnvRunner nodes hosting the LF2 window).
+# Each entry is gated by a platform marker so a Linux ``pip install
+# lf2_gym[windows]`` silently skips them rather than failing.
+windows = [
+    "mss; platform_system == 'Windows'",
+    "pyautogui; platform_system == 'Windows'",
+    "pymem; platform_system == 'Windows'",
+    "pywin32; platform_system == 'Windows'",
+    "opencv-python>=3.3.1; platform_system == 'Windows'",
+]
+
+# Multi-agent (in-window 4-player) environment
+multiagent = [
+    "pettingzoo>=1.24",
+]
+
+# Distributed async RL training — learner side (DGX).
+# Workers additionally need ``[windows]`` installed.
+rl = [
+    "lf2_gym[multiagent]",
+    "ray[rllib]>=2.9",
+    "torch",
+]
+
+# Development dependencies
+dev = [
+    "pytest",
+    "pytest-mock",
+    "pytest-cov",
+    "packaging",
+    "ruff",
+    "pettingzoo>=1.24",
+]
+
+
+# Full installation (learner + worker on one box, typically Windows dev)
+all = ["lf2_gym[dev,multiagent,rl,windows]"]
+
+[tool.setuptools-git-versioning]
+enabled = true
+dev_template = "{tag}.dev{ccount}+g{sha}"
+dirty_template = "{tag}.dev{ccount}+g{sha}.dirty"
+
+[tool.setuptools.packages.find]
+where = ["."]
+# Both ``lf2_gym*`` (the env package) and ``lf2_rl*`` (the training /
+# RLlib glue) must be installed — otherwise Ray worker processes can't
+# resolve ``lf2_rl.rllib.worker_register`` from the runtime-env setup
+# hook and fail with ``ModuleNotFoundError: No module named 'lf2_rl'``.
+include = ["lf2_gym*", "lf2_rl*"]
+
+[tool.ruff]
+lint.select = [
+    "E", # pycodestyle error
+    "F", # Pyflakes
+    "I", # isort
+    "PLE", # Pylint error
+    "PLW", # Pylint warning
+    "G", # flake8-logging-format
+    "N", # pep8-naming
+    "A", # flake8-builtins
+    "UP006", # pyupgrade: use PEP 585 builtin generics (list instead of List, dict instead of Dict, etc.)
+    "UP035", # pyupgrade: import from collections.abc instead of typing (Callable, Sequence, etc.)
+]
+
+lint.ignore = [
+    "A003", # builtin-attribute-shadowing
+]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+lint.fixable = [
+    "F841", # unused-variable
+    "F541", # f-string-missing-placeholders
+]
+lint.unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 120
+
+# Allow unused variables when underscore-prefixed.
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Assume Python 3.12
+target-version = "py312"
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[tool.black]
+line-length = 120
+target-version = ['py312']
+
+[tool.isort]
+py_version = 312
+profile = "black"
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report term --cov-report xml:coverage.xml --junitxml=gitlab_cov.xml"
