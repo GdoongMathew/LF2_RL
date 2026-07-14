@@ -30,6 +30,7 @@ from lf2_gym.spec import (
     Mode,
     build_lf2_act_space,
     build_lf2_obs_space,
+    normalize_info,
 )
 
 logger = get_logger(__name__)
@@ -161,7 +162,12 @@ class Lf2EnvBase(gym.Env):
         return self.get_players_state()
 
     def get_players_state(self) -> np.ndarray:
-        return self.controller.get_players_state(self.my_player)
+        # Normalize the controller's (num_players, 6) int16 buffer to a
+        # 1-D float32 vector in roughly [0, 1] — matches the space built
+        # by ``lf2_gym.spec.build_lf2_info_space`` and gives the MLP
+        # encoder a network-friendly signal (raw values span [0, 1500]+
+        # across columns, which would otherwise saturate the first layer).
+        return normalize_info(self.controller.get_players_state(self.my_player))
 
     # ------------------------------------------------------------------- API
     def reset(
@@ -262,21 +268,36 @@ class Lf2ParallelEnvBase(ParallelEnv):
         # in ``reset()``.
         self._reward_state: dict[str, RewardState] = {a: RewardState() for a in self.possible_agents}
 
-        self._obs_spaces = {
-            a: build_lf2_obs_space(
-                mode=mode,
-                num_players=controller.num_players,
-                mp_max=self._players[a].mp_max,
-                hp_max=self._players[a].hp_max,
-                channels=controller.channels,
-                img_h=controller.img_h,
-                img_w=controller.img_w,
-            )
-            for a in self.possible_agents
-        }
-        self._act_spaces = {
-            a: build_lf2_act_space(len(self._players[a].moves)) for a in self.possible_agents
-        }
+        # All in-window agents share a single policy, so RLlib's
+        # ``agent_to_module_mapping`` requires identical obs/action spaces
+        # across agents AND between the driver-declared space and the
+        # actual env's space. Two consequences:
+        #
+        # 1. Use one shared ``Box`` / ``Discrete`` instance for every
+        #    agent (avoid per-agent ``mp_max`` / ``hp_max`` reads from
+        #    live game memory, which would vary by character).
+        # 2. Use the **same constant** bounds the driver-side
+        #    ``lf2_rl.rllib.spec.build_spaces_from_config`` defaults to —
+        #    500 / 500. If you train across mixed characters with HP > 500
+        #    pass matching ``--hp-max`` / ``--mp-max`` to train.py *and*
+        #    plumb them through ``env_config``.
+        shared_mp_max = 500
+        shared_hp_max = 500
+        shared_num_moves = max(len(p.moves) for p in self._players.values())
+
+        shared_obs_space = build_lf2_obs_space(
+            mode=mode,
+            num_players=controller.num_players,
+            mp_max=shared_mp_max,
+            hp_max=shared_hp_max,
+            channels=controller.channels,
+            img_h=controller.img_h,
+            img_w=controller.img_w,
+        )
+        shared_act_space = build_lf2_act_space(shared_num_moves)
+
+        self._obs_spaces = {a: shared_obs_space for a in self.possible_agents}
+        self._act_spaces = {a: shared_act_space for a in self.possible_agents}
 
     # ----------------------------------------------------------------- spaces
     @functools.lru_cache(maxsize=None)
@@ -292,11 +313,12 @@ class Lf2ParallelEnvBase(ParallelEnv):
         player = self._players[agent]
         if self.mode == "picture":
             return self.controller.get_image_obs()
+        info = normalize_info(self.controller.get_players_state(player))
         if self.mode == "info":
-            return self.controller.get_players_state(player)
+            return info
         return {
             "Game_Screen": self.controller.get_image_obs(),
-            "Info": self.controller.get_players_state(player),
+            "Info": info,
         }
 
     def _all_obs(self) -> dict[str, Any]:

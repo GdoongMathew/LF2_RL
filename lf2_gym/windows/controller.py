@@ -50,6 +50,12 @@ def split_one(num_interval: int = 1) -> np.ndarray:
 class Lf2GameController:
     """Owns the LF2 window and all shared game I/O for one game instance."""
 
+    #: Default seconds to wait for the first captured frame after the
+    #: recording thread starts. Override via the ``first_frame_timeout``
+    #: ctor kwarg; set to ``None`` (or non-positive) to wait forever
+    #: (legacy behaviour).
+    DEFAULT_FIRST_FRAME_TIMEOUT: float = 30.0
+
     def __init__(
         self,
         windows_name: str = "Little Fighter 2",
@@ -57,14 +63,15 @@ class Lf2GameController:
         frame_stack: int = 4,
         frame_skip: int = 1,
         gray_scale: bool = True,
+        first_frame_timeout: float | None = DEFAULT_FIRST_FRAME_TIMEOUT,
     ):
         self.window_name = windows_name
         self.game_hwnd = winauto.findTopWindow(wantedText=windows_name)
         self.PyCWnd1 = win32ui.FindWindow(None, windows_name)
         self.PyCWnd1.SetForegroundWindow()
         self.PyCWnd1.SetFocus()
+        self.first_frame_timeout = first_frame_timeout
 
-        self.kill_thread = False
         self.sct = MSS()
 
         self.players: list[None | Player] = [None] * 8
@@ -93,6 +100,8 @@ class Lf2GameController:
         self.game_over = False
         self.restart = True
 
+        self._stop_event = threading.Event()
+
         self.recording_thread = threading.Thread(target=self.update_game_img, daemon=True)
         self.recording_thread.start()
         self.player_thread = threading.Thread(target=self.update_players, daemon=True)
@@ -100,8 +109,24 @@ class Lf2GameController:
 
         # Block until the image pipeline has produced its first frame so that
         # img_h / img_w are known to callers building observation spaces.
+        #
+        # Fail fast if LF2 never produces a frame (e.g. LF2 not running, not
+        # focused, or window minimized). Without a deadline a stuck Ray
+        # worker would silently never report Ready, hanging the whole
+        # training run.
+        deadline = (
+            time.monotonic() + self.first_frame_timeout
+            if self.first_frame_timeout and self.first_frame_timeout > 0
+            else None
+        )
         while not self.img_h:
-            time.sleep(0.001)
+            if deadline is not None and time.monotonic() > deadline:
+                raise RuntimeError(
+                    f"Lf2GameController: no frame captured from window "
+                    f"{windows_name!r} within {self.first_frame_timeout}s. "
+                    f"Make sure LF2 is running, focused and visible."
+                )
+            time.sleep(0.01)
 
     # ------------------------------------------------------------------ players
     @property
@@ -142,14 +167,14 @@ class Lf2GameController:
         pay for ``np.stack`` + a float ``tensordot`` + a uint8 cast.
         """
         _imgs = np.stack(self.frames)
-        img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0]))
+        img_stack = np.tensordot(self.img_weights, _imgs, axes=([0], [0])).astype(np.uint8)
         if self.gray_scale:
             img_stack = img_stack[None, ...]
         else:
             img_stack = np.transpose(img_stack, (2, 0, 1))
         # Publish via reference swap (atomic in CPython). Consumers see a
         # fully-formed array without needing a lock.
-        self._composed_obs = img_stack.astype(np.uint8)
+        self._composed_obs = img_stack
 
     def get_image_obs(self) -> np.ndarray:
         """Return the weighted, channels-first ``uint8`` stacked image."""
@@ -168,7 +193,8 @@ class Lf2GameController:
         return self._state_buf[rows]
 
     # --------------------------------------------------------------- key sending
-    def press_player_action(self, player: Player, action_id: int) -> None:
+    @staticmethod
+    def press_player_action(player: Player, action_id: int) -> None:
         """Send the keystrokes for ``player``'s chosen action to the window."""
         press_key(player.action_keys(action_id))
 
@@ -177,7 +203,7 @@ class Lf2GameController:
         """Continuously capture the gaming scene into the frame stack."""
         skip_i = 0
         last_frame = np.array([0])
-        while not self.kill_thread:
+        while not self._stop_event.is_set():
             tup = win32gui.GetWindowPlacement(self.game_hwnd)
 
             if tup[1] == win32con.SW_SHOWMAXIMIZED:
@@ -198,10 +224,12 @@ class Lf2GameController:
 
             # img color in BGR order
             screen_shot = np.array(self.sct.grab(pos), np.uint8)[:, :, :3]
+            screen_sample = screen_shot[::5, ::5]
 
-            if np.array_equal(last_frame, screen_shot):
+            if np.array_equal(last_frame, screen_sample):
                 # refresh until new frame exists.
                 continue
+            last_frame = screen_sample.copy()
             self.gaming_screen = screen_shot
 
             if not self.img_h:
@@ -219,17 +247,18 @@ class Lf2GameController:
                     self._compose_obs()
             else:
                 skip_i += 1
-            last_frame = screen_shot.copy()
-            time.sleep(0.01)
+
+            self._stop_event.wait(0.02)
 
     def update_players(self) -> None:
         """Continuously refresh player memory state and game-over detection."""
         buf = self._state_buf
-        while not self.kill_thread:
-            time.sleep(0.01)
+        while not self._stop_event.is_set():
+            self._stop_event.wait(0.02)
             if self.game_over:
                 continue
             team = []
+            human_alive = False
             for i, player in enumerate(self.active_players):
                 player.update()
                 # Mirror the refreshed Python attrs into the contiguous int16
@@ -240,8 +269,9 @@ class Lf2GameController:
                 )
                 if player.is_alive:
                     team.append(player.team)
+                human_alive |= player.is_alive and not player.is_computer
             self.restart = False
-            self.game_over = len(team) > 0 and len(set(team)) == 1
+            self.game_over = (len(team) > 0 and len(set(team)) == 1) or not human_alive
             if self.game_over and not self.restart:
                 logger.info("Game over detected: all active players are on the same team.")
 
@@ -261,4 +291,4 @@ class Lf2GameController:
 
     def close(self) -> None:
         cv2.destroyAllWindows()
-        self.kill_thread = True
+        self._stop_event.set()

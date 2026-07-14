@@ -13,7 +13,7 @@ import time
 import pyautogui
 
 
-def press_key(keys: list[str], interval: float = 0.1) -> None:
+def press_key(keys: list[str], interval: float = 0.05) -> None:
     """Hold ``keys`` down for ``interval`` seconds, then release all of them.
 
     Consecutive identical keys get an extra ``keyUp`` first so the second

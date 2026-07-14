@@ -83,7 +83,13 @@ def build_spaces_from_config(
     """
     mode: Mode = env_config.get("mode", "mix")
     player_ids = env_config.get("player_ids") or (0, 1, 2, 3)
-    num_players = len(tuple(player_ids))
+    # ``num_players`` may exceed ``len(player_ids)`` when the LF2 scene has
+    # CPU bots active alongside the agent-controlled slots — the Info obs
+    # includes rows for every active player, not just those we drive. If
+    # the deployment has bots, the caller MUST pass ``num_players`` in
+    # env_config (or ``--num-players`` on train.py) so the driver's
+    # declared obs shape matches what the env actually emits.
+    num_players = int(env_config.get("num_players") or len(tuple(player_ids)))
 
     downscale = int(env_config.get("downscale", 2))
     img_h = int(env_config.get("img_h") or 0)

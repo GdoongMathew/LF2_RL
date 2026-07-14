@@ -119,8 +119,10 @@ def test_reset_returns_per_agent_obs(env, controller):
     assert controller.reset_calls == 1
     for agent in env.possible_agents:
         assert obs[agent]["Game_Screen"].shape == (1, 8, 12)
-        # info: self first then 3 others
-        assert obs[agent]["Info"].shape == (4, 6)
+        # info: self first then 3 others, flattened + normalized to
+        # (num_players * 6,) float32 — see ``lf2_gym.spec.normalize_info``.
+        assert obs[agent]["Info"].shape == (4 * 6,)
+        assert obs[agent]["Info"].dtype == np.float32
     assert set(infos) == set(env.possible_agents)
 
 
@@ -147,7 +149,10 @@ def test_info_mode_obs_is_array(controller):
     env = Lf2ParallelEnv(player_ids=(0, 1), mode="info", reset_skip_sec=0, controller=controller)
     obs, _ = env.reset(options={"default_ok": ["A"]})
     assert isinstance(obs["player_0"], np.ndarray)
-    assert obs["player_0"].shape == (4, 6)
+    # 4 active players in the fake controller, 6 fields each, flattened
+    # and normalized to float32 by ``lf2_gym.spec.normalize_info``.
+    assert obs["player_0"].shape == (4 * 6,)
+    assert obs["player_0"].dtype == np.float32
 
 
 def test_inactive_slot_raises(controller):

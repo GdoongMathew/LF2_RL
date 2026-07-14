@@ -33,7 +33,7 @@ from lf2_gym.keymap import PlayerProtocol
 HP_DELTA_WEIGHT: float = 1.0  # (enemy_loss − team_loss) / hp_max
 HIT_BONUS: float = 0.5  # per increment in my_player.attacks
 DEATH_PENALTY: float = 10.0  # one-shot on alive → dead transition
-TIME_PENALTY: float = 0.0  # subtracted every step; 0 = disabled
+TIME_PENALTY: float = 0.01  # subtracted every step; 0 = disabled
 
 
 @dataclass(frozen=True)
@@ -79,7 +79,7 @@ def compute_reward(
     # Death is a single event: the step that crossed alive → dead.
     just_died = prev.is_alive and not my_player.is_alive
 
-    hp_max = my_player.hp_max or 1  # defensive: avoid div-by-zero pre-init
+    hp_max = max(my_player.hp_max, 1)
     reward = (
         HP_DELTA_WEIGHT * (enemy_loss - team_loss) / hp_max
         + HIT_BONUS * hit_delta

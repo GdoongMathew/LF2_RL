@@ -1,13 +1,7 @@
 import logging
-import os
 import gymnasium as gym
-import lf2_gym
 
-# from lf2_gym.lf2_envs.LF2_Env import Lf2Env
-
-
-from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3 import A2C, DQN, PPO
+from stable_baselines3 import PPO
 from lf2_gym.loggers import get_logger
 
 logger = get_logger()
@@ -42,7 +36,6 @@ def main():
         gray_scale=False,
         player_id=0,
     )
-    num_cpu = 1
 
     # lf2_env = Lf2Env(**karg)
 

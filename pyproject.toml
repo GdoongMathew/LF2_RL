@@ -69,7 +69,11 @@ dirty_template = "{tag}.dev{ccount}+g{sha}.dirty"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lf2_gym*"]
+# Both ``lf2_gym*`` (the env package) and ``lf2_rl*`` (the training /
+# RLlib glue) must be installed — otherwise Ray worker processes can't
+# resolve ``lf2_rl.rllib.worker_register`` from the runtime-env setup
+# hook and fail with ``ModuleNotFoundError: No module named 'lf2_rl'``.
+include = ["lf2_gym*", "lf2_rl*"]
 
 [tool.ruff]
 lint.select = [
